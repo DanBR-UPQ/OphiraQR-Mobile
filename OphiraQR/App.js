@@ -1,12 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
+import ListActivosScreen from './screens/activos/ListActivosScreen';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Ophira QR - Mobile</Text>
-      <StatusBar style="auto" />
-    </View>
+    <ListActivosScreen/>
   );
 }
 
