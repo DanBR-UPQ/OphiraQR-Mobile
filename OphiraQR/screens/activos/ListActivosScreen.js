@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { api } from '../../services/api'
 import {
   StyleSheet,
   Text,
@@ -20,6 +21,26 @@ const initialData = [
   // ... más datos mock si se necesita
 ];
 
+const cargarDatos =  async () => {
+  try {
+    const datos = await api.get("/assets/")
+
+    setData(datos)
+
+  } catch (e){
+    console.log("ERROR AHHHHHH: " + e)
+  }
+}
+
+const crearAsset = async () => {
+  try {
+    await api.post("/assets/", editValues)
+  } catch (e){
+    console.log("ERROR AHHHHHH: " + e)
+  }
+}
+
+
 export default function ListActivosScreen() {
   const [data, setData] = useState(initialData);
   const [searchText, setSearchText] = useState('');
@@ -32,6 +53,10 @@ export default function ListActivosScreen() {
   const [detailVisible, setDetailVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [editValues, setEditValues] = useState({ nombre: '', descripcion: '' });
+
+
+  useEffect(() => {cargarDatos()},[])
+
 
   const filtered = useMemo(() => {
     const q = searchText.trim().toLowerCase();
