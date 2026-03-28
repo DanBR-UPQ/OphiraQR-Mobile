@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '@env'
 
-const API_URL = "http://localhost:4000/api"; // todo: no se si jale con localhost
+// IMPORTANTE: LEER README.md
+const API_URL = API_URL
+
 
 export const api = {
   get: async (endpoint) => {
