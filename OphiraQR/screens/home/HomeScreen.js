@@ -1,7 +1,68 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState, useMemo } from 'react'
 import { api } from '../../services/api'
+
+
+
+
+
+const DonutChart = ({ data, size = 110, strokeWidth = 18 }) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  const colors = ['#0055e5', '#0099ff', '#a855f7', '#10b981', '#ff6b35'];
+
+  let cumulativePercent = 0;
+
+  return (
+    <View style={{ width: size, height: size }}>
+      <Svg width={size} height={size}>
+        {data.map((item, index) => {
+          const strokeDasharray = `${item.percent * circumference} ${circumference}`;
+          const strokeDashoffset = -cumulativePercent * circumference;
+
+          cumulativePercent += item.percent;
+
+          return (
+            <Circle
+              key={index}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke={colors[index % colors.length]}
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={strokeDasharray}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="butt"
+              rotation="-90"
+              origin={`${size / 2}, ${size / 2}`}
+            />
+          );
+        })}
+      </Svg>
+
+      {/* Center */}
+      <View
+        style={{
+          position: 'absolute',
+          top: size / 2 - 20,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+        }}
+      >
+        <Text style={{ color: '#5a7a9e', fontSize: 10 }}>Total</Text>
+        <Text style={{ color: '#f0f4ff', fontSize: 14, fontWeight: '700' }}>100%</Text>
+      </View>
+    </View>
+  );
+};
+
+
+
 
 export default function HomeScreen() {
   const [data, setData] = useState([]);
@@ -35,6 +96,7 @@ export default function HomeScreen() {
   /* COSOS PARA LAS METRIC CARDS */
   const activos = data.filter(d => d.estado === "Activo").length
   const inactivos = data.filter(d => d.estado !== "Activo").length
+  const colors = ['#0055e5', '#0099ff', '#a855f7', '#10b981', '#ff6b35']
 
   const recientes = data.filter(d => {
     const fecha = new Date(d.fecha)
@@ -54,7 +116,7 @@ export default function HomeScreen() {
 
   const categoriasPercent = Object.entries(categoriasCount).map(([cat, count]) => ({
     nombre: cat,
-    percent: data.length ? Math.round((count / data.length) * 100) : 0
+    percent: data.length ? (count / data.length) : 0
   }))
 
   const recientesLista = [...data]
@@ -153,24 +215,16 @@ export default function HomeScreen() {
         <View style={styles.card}>
           <View style={styles.chartRow}>
             {/* Donut chart */}
-            <View style={styles.donutChart}>
-              <View style={styles.donutSegment1} />
-              <View style={styles.donutSegment2} />
-              <View style={styles.donutSegment3} />
-              <View style={styles.donutCenter}>
-                <Text style={styles.donutCenterLabel}>Total</Text>
-                <Text style={styles.donutCenterValue}>100%</Text>
-              </View>
-            </View>
+            <DonutChart data={categoriasPercent} />
 
             {/* Legend */}
             <View style={styles.chartLegend}>
               {categoriasPercent.map((cat, i) => (
                 <View key={i} style={styles.legendItem}>
-                  <View style={[styles.legendBar, { backgroundColor: '#0055e5' }]} />
+                  <View style={[styles.legendBar, { backgroundColor: colors[i % colors.length] }]} />
                   <View>
                     <Text style={styles.legendLabel}>{cat.nombre}</Text>
-                    <Text style={styles.legendPercent}>{cat.percent}%</Text>
+                    <Text style={styles.legendPercent}>{Math.round(cat.percent * 100)}%</Text>
                   </View>
                 </View>
               ))}
