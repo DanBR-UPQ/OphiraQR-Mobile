@@ -71,6 +71,7 @@ export default function HomeScreen() {
   const cargarDatos = async () => {
     try {
       const datos = await api.get("/assets/activosUser")
+      //const datos = await api.get("/assets/")
 
       const formateado = datos.rows.map(item => ({
         id: item.id_activo,

@@ -11,8 +11,11 @@ Se los dejo paso por paso por si cualquier cosa:
 
 # 2. Guarden su IP en un .env
     - Creen un .env a la misma altura que App.js
-    - Pongan API_URL=http://[su ip]:4000/api
+    - Pongan EXPO_PUBLIC_API_URL=http://[su ip]:4000/api
         (sin los corchetes)
+
+# 3. Chequen que API_URL en api.js sea const API_URL = process.env.ENV_API_URL
+    - Como yo hago pruebas con emulador uso API_URL = API_URL_EMULATOR
 
 Importante: cada vez que levanten el front con otra conexión de internet tienen que volver a guardar su IP
 

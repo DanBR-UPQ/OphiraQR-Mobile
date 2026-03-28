@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_URL } from '@env'
 
 // IMPORTANTE: LEER README.md
-const API_URL = API_URL
+//const API_URL = process.env.EXPO_PUBLIC_ENV_API_URL
+const API_URL = process.env.EXPO_PUBLIC_API_URL_EMULATOR
 
 
 export const api = {
