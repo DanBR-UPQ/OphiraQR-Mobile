@@ -1,7 +1,52 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Image } from 'react-native';
+import { useState } from 'react'
+import { api } from '../../services/api'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Alert } from 'react-native'
 
 export default function LoginScreen() {
+
+  const [correo, setCorreo] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+
+  const handleLogin = async () => {
+    if (!correo || !password) {
+      Alert.alert('Error', 'Completa todos los campos');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await api.post('/auth/login', {
+        correo,
+        password
+      });
+
+      await AsyncStorage.setItem('token', response.token);
+
+      Alert.alert('Éxito', 'Login correcto');
+
+      console.log('Usuario:', response.usuario);
+
+      // TODO: navegar al home
+
+    } catch (error) {
+      Alert.alert('Error', 'Credenciales incorrectas o servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
+
+
+
+
+
   return (
     <View style={styles.container}>
       {/* Subtle background accent blob */}
@@ -25,11 +70,13 @@ export default function LoginScreen() {
 
         {/* Inputs */}
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Correo o Usuario</Text>
+          <Text style={styles.inputLabel}>Correo</Text>
           <TextInput
             style={styles.input}
             placeholder="usuario@empresa.com"
             placeholderTextColor="#3a4a60"
+            value={correo}
+            onChangeText={setCorreo}
           />
         </View>
 
@@ -40,11 +87,13 @@ export default function LoginScreen() {
             placeholder="••••••••"
             placeholderTextColor="#3a4a60"
             secureTextEntry
+            value={password}
+            onChangeText={setPassword}
           />
         </View>
 
         {/* CTA */}
-        <TouchableOpacity style={styles.button} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.button} activeOpacity={0.85} onPress={handleLogin}>
           <Text style={styles.buttonText}>Iniciar Sesión</Text>
           <View style={styles.buttonArrow}>
             <Text style={styles.buttonArrowText}>→</Text>
