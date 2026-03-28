@@ -1,7 +1,75 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useEffect, useState, useMemo } from 'react'
+import { api } from '../../services/api'
 
 export default function HomeScreen() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const cargarDatos = async () => {
+    try {
+      const datos = await api.get("/assets/activosUser")
+
+      const formateado = datos.rows.map(item => ({
+        id: item.id_activo,
+        nombre: item.nombre,
+        descripcion: item.descripcion,
+        estado: item.estado_nombre, 
+        categoria: item.categoria_nombre,
+        ubicacion: item.id_aula,
+        fecha: item.fecha_compra
+      }))
+
+      setData(formateado)
+    } catch (e) {
+      console.log("ERROR:", e)
+      Alert.alert("Error", "No se pudieron cargar los activos")
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { cargarDatos() }, [])
+
+  /* COSOS PARA LAS METRIC CARDS */
+  const activos = data.filter(d => d.estado === "Activo").length
+  const inactivos = data.filter(d => d.estado !== "Activo").length
+
+  const recientes = data.filter(d => {
+    const fecha = new Date(d.fecha)
+    const hoy = new Date()
+    const diff = (hoy - fecha) / (1000 * 60 * 60 * 24)
+    return diff <= 7
+  }).length
+
+
+  const categoriasCount = useMemo(() => {
+    const counts = {};
+    data.forEach(d => {
+      counts[d.categoria] = (counts[d.categoria] || 0) + 1;
+    });
+    return counts
+  }, [data])
+
+  const categoriasPercent = Object.entries(categoriasCount).map(([cat, count]) => ({
+    nombre: cat,
+    percent: data.length ? Math.round((count / data.length) * 100) : 0
+  }))
+
+  const recientesLista = [...data]
+  .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+  .slice(0, 4);
+
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={{ color: 'white' }}>Cargando...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Ambient background glow */}
@@ -38,7 +106,7 @@ export default function HomeScreen() {
           <View style={styles.metricIconBg}>
             <MaterialIcons name="inventory-2" size={18} color="#0055e5" />
           </View>
-          <Text style={styles.metricValue}>2,453</Text>
+          <Text style={styles.metricValue}>{data.length}</Text>
           <Text style={styles.metricLabel}>Total Activos</Text>
           <Text style={[styles.metricChange, { color: '#10b981' }]}>↑ +12%</Text>
         </View>
@@ -48,9 +116,9 @@ export default function HomeScreen() {
           <View style={[styles.metricIconBg, { backgroundColor: 'rgba(255,107,53,0.12)' }]}>
             <MaterialIcons name="warning" size={18} color="#ff6b35" />
           </View>
-          <Text style={styles.metricValue}>18</Text>
-          <Text style={styles.metricLabel}>Mantenimiento</Text>
-          <Text style={[styles.metricChange, { color: '#ff6b35' }]}>⚠ 3 overdue</Text>
+          <Text style={styles.metricValue}>{inactivos}</Text>
+          <Text style={styles.metricLabel}>Inactivos</Text>
+          {/* <Text style={[styles.metricChange, { color: '#ff6b35' }]}>⚠ 3 overdue</Text> */}
         </View>
 
         {/* Card 3 */}
@@ -58,7 +126,7 @@ export default function HomeScreen() {
           <View style={[styles.metricIconBg, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
             <MaterialIcons name="check-circle" size={18} color="#10b981" />
           </View>
-          <Text style={styles.metricValue}>45</Text>
+          <Text style={styles.metricValue}>{recientes}</Text>
           <Text style={styles.metricLabel}>Añadidos</Text>
           <Text style={[styles.metricChange, { color: '#7a8fa6' }]}>Últimos 7 días</Text>
         </View>
@@ -68,9 +136,8 @@ export default function HomeScreen() {
           <View style={[styles.metricIconBg, { backgroundColor: 'rgba(168,85,247,0.12)' }]}>
             <MaterialIcons name="trending-up" size={18} color="#a855f7" />
           </View>
-          <Text style={styles.metricValue}>$1.2M</Text>
-          <Text style={styles.metricLabel}>Valor Total</Text>
-          <Text style={[styles.metricChange, { color: '#10b981' }]}>↑ +4.5%</Text>
+          <Text style={styles.metricValue}>{Object.keys(categoriasCount).length}</Text>
+          <Text style={styles.metricLabel}>Categorías</Text>
         </View>
       </View>
 
@@ -98,27 +165,15 @@ export default function HomeScreen() {
 
             {/* Legend */}
             <View style={styles.chartLegend}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendBar, { backgroundColor: '#0055e5' }]} />
-                <View>
-                  <Text style={styles.legendLabel}>Electrónica</Text>
-                  <Text style={styles.legendPercent}>45%</Text>
+              {categoriasPercent.map((cat, i) => (
+                <View key={i} style={styles.legendItem}>
+                  <View style={[styles.legendBar, { backgroundColor: '#0055e5' }]} />
+                  <View>
+                    <Text style={styles.legendLabel}>{cat.nombre}</Text>
+                    <Text style={styles.legendPercent}>{cat.percent}%</Text>
+                  </View>
                 </View>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendBar, { backgroundColor: '#0099ff' }]} />
-                <View>
-                  <Text style={styles.legendLabel}>Mobiliario</Text>
-                  <Text style={styles.legendPercent}>30%</Text>
-                </View>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendBar, { backgroundColor: '#a855f7' }]} />
-                <View>
-                  <Text style={styles.legendLabel}>Vehículos</Text>
-                  <Text style={styles.legendPercent}>25%</Text>
-                </View>
-              </View>
+              ))}
             </View>
           </View>
         </View>
@@ -142,67 +197,43 @@ export default function HomeScreen() {
           </View>
 
           {/* Row */}
-          {[
-            {
-              icon: 'laptop',
-              name: 'MacBook Pro M2',
-              code: 'ORi-8932',
-              status: 'Activo',
-              statusColor: '#10b981',
-              statusBg: 'rgba(16,185,129,0.1)',
-              location: 'HQ - Piso 3',
-            },
-            {
-              icon: 'print',
-              name: 'HP LaserJet Pro',
-              code: 'ORi-1029',
-              status: 'Mantenimiento',
-              statusColor: '#ffc107',
-              statusBg: 'rgba(255,193,7,0.1)',
-              location: 'Almacén B',
-            },
-            {
-              icon: 'chair',
-              name: 'Ergo Chair V2',
-              code: 'ORi-4451',
-              status: 'Asignado',
-              statusColor: '#0099ff',
-              statusBg: 'rgba(0,153,255,0.1)',
-              location: 'Oficina 302',
-            },
-            {
-              icon: 'tablet',
-              name: 'iPad Pro 12.9',
-              code: 'ORi-8921',
-              status: 'Perdido',
-              statusColor: '#ef4444',
-              statusBg: 'rgba(239,68,68,0.1)',
-              location: 'Lobby',
-              isLast: true,
-            },
-          ].map((item, i) => (
-            <View key={i} style={[styles.tableRow, item.isLast && { borderBottomWidth: 0 }]}>
-              <View style={[styles.tableRowCell, { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
-                <View style={styles.assetIconWrap}>
-                  <MaterialIcons name={item.icon} size={16} color="#4a6fa8" />
-                </View>
-                <View>
-                  <Text style={styles.assetName}>{item.name}</Text>
-                  <Text style={styles.assetCode}>{item.code}</Text>
-                </View>
-              </View>
 
-              <View style={[styles.tableRowCell, { flex: 1.2, alignItems: 'center' }]}>
-                <View style={[styles.statusBadge, { backgroundColor: item.statusBg }]}>
-                  <Text style={[styles.statusText, { color: item.statusColor }]}>{item.status}</Text>
+          {recientesLista.length === 0 ? (
+            <Text style={{ color: '#5a7a9e', padding: 16 }}>
+              No hay actividad reciente
+            </Text>
+          ) : (
+            recientesLista.map((item, i) => (
+              <View key={i} style={[styles.tableRow, item.isLast && { borderBottomWidth: 0 }]}>
+                <View style={[styles.tableRowCell, { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+                  <View style={styles.assetIconWrap}>
+                    <MaterialIcons name="inventory" size={16} color="#4a6fa8" />
+                  </View>
+                  <View>
+                    <Text style={styles.assetName}>{item.nombre}</Text>
+                    <Text style={styles.assetCode}>{item.id}</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.tableRowCell, { flex: 1.2, alignItems: 'center' }]}>
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: item.estado === "Activo" ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }
+                  ]}>
+                    <Text style={[styles.statusText, { color: item.estado === "Activo" ? "#10b981" : "#ef4444" }]}>
+                    {item.estado}
+                  </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.tableRowCell, { flex: 1.5, alignItems: 'flex-end' }]}>
+                  <Text style={styles.locationText}>{item.ubicacion}</Text>
                 </View>
               </View>
+          ))
+          )}
 
-              <View style={[styles.tableRowCell, { flex: 1.5, alignItems: 'flex-end' }]}>
-                <Text style={styles.locationText}>{item.location}</Text>
-              </View>
-            </View>
-          ))}
+          
         </View>
       </View>
     </ScrollView>
