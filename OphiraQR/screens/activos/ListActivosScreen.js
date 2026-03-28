@@ -21,42 +21,58 @@ const initialData = [
   // ... más datos mock si se necesita
 ];
 
-const cargarDatos =  async () => {
-  try {
-    const datos = await api.get("/assets/")
-
-    setData(datos)
-
-  } catch (e){
-    console.log("ERROR AHHHHHH: " + e)
-  }
-}
-
-const crearAsset = async () => {
-  try {
-    await api.post("/assets/", editValues)
-  } catch (e){
-    console.log("ERROR AHHHHHH: " + e)
-  }
-}
-
 
 export default function ListActivosScreen() {
   const [data, setData] = useState(initialData);
   const [searchText, setSearchText] = useState('');
   const [searchBy, setSearchBy] = useState('nombre'); // 'nombre' o 'id'
   const [estadoFilter, setEstadoFilter] = useState('Todos');
-  const categorias = useMemo(() => ['Todos', ...Array.from(new Set(initialData.map(d => d.categoria)))], []);
+  const categorias = useMemo(() => [
+    'Todos',
+    ...Array.from(new Set(data.map(d => d.categoria)))
+  ], [data])
   const [categoriaFilter, setCategoriaFilter] = useState('Todos');
 
   const [selectedActivo, setSelectedActivo] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editVisible, setEditVisible] = useState(false);
   const [editValues, setEditValues] = useState({ nombre: '', descripcion: '' });
 
 
-  useEffect(() => {cargarDatos()},[])
+  const cargarDatos =  async () => {
+    try {
 
+      const datos = await api.get("/assets/activosUser")
+
+      const formateado = datos.rows.map(item => ({
+        id: item.id_activo, 
+        nombre: item.nombre,
+        descripcion: item.descripcion,
+        estado: item.estado_nombre, 
+        categoria: item.categoria_nombre,
+        ubicacion: item.id_aula
+      }))
+
+      setData(formateado)
+
+    } catch (e){
+      console.log("ERROR AHHHHHH: " + e)
+      Alert.alert("Error", "No se pudieron cargar los activos")
+    } finally {
+      setLoading(false);
+    }
+  }
+
+    useEffect(() => {cargarDatos()},[])
+
+  const crearAsset = async () => {
+    try {
+      await api.post("/assets/", editValues)
+    } catch (e){
+      console.log("ERROR AHHHHHH: " + e)
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = searchText.trim().toLowerCase();
@@ -65,7 +81,7 @@ export default function ListActivosScreen() {
       if (categoriaFilter !== 'Todos' && item.categoria !== categoriaFilter) return false;
       if (!q) return true;
       if (searchBy === 'nombre') return item.nombre.toLowerCase().includes(q);
-      return item.id.toLowerCase().includes(q);
+      return String(item.id).toLowerCase().includes(q);
     });
   }, [data, searchText, searchBy, estadoFilter, categoriaFilter]);
 
@@ -115,13 +131,21 @@ export default function ListActivosScreen() {
     </TouchableOpacity>
   );
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={{ color: 'white' }}>Cargando...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.tituloActivo}>Lista de Activos</Text>
-        <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
+        {/* <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
           <Text style={styles.createButtonText}>Crear Activo</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <View style={styles.searchRow}>
@@ -175,14 +199,15 @@ export default function ListActivosScreen() {
                 <Text style={styles.modalText}>Estado: {selectedActivo.estado}</Text>
                 <Text style={styles.modalText}>Ubicación: {selectedActivo.ubicacion}</Text>
 
-                <View style={styles.modalButtons}>
+                {/* DESCOMENTAR SI SE OCUPA EDITAR Y ELIMINAR */}
+                {/* <View style={styles.modalButtons}>
                   <TouchableOpacity style={styles.modalBtnPrimary} onPress={() => openEdit(selectedActivo)}>
                     <Text style={styles.modalBtnText}>Editar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.modalBtnDanger} onPress={() => handleDelete(selectedActivo.id)}>
                     <Text style={styles.modalBtnText}>Eliminar</Text>
                   </TouchableOpacity>
-                </View>
+                </View> */}
                 <TouchableOpacity style={styles.modalClose} onPress={() => setDetailVisible(false)}>
                   <Text style={styles.modalCloseText}>Cerrar</Text>
                 </TouchableOpacity>
