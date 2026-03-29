@@ -1,12 +1,120 @@
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useState, useRef } from 'react';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { api } from '../services/api';
 
 export default function ScanQrScreen() {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [cameraActive, setCameraActive] = useState(true);
+  const [codigoDetectado, setCodigoDetectado] = useState('');
+  const [codigoManual, setCodigoManual] = useState('');
+  const [assetData, setAssetData] = useState({});
+  const isProcessing = useRef(false);
+
   const recentScans = [
     { id: 1, name: 'LG UltraFine 5K', code: 'OPH-AST-0844', time: '10:15 AM', icon: 'desktop-mac' },
     { id: 2, name: 'Herman Miller Aeron', code: 'OPH-AST-0102', time: '09:48 AM', icon: 'event-seat' },
     { id: 3, name: 'HP LaserJet Pro', code: 'OPH-AST-0331', time: 'Ayer', icon: 'print' },
   ];
+
+  const fetchAsset = async (id) => {
+    try {
+      const idBuscado = String(id).trim();
+      if (!idBuscado) {
+        setAssetData({});
+        return;
+      }
+
+      const response = await api.get(`assets/activo/${idBuscado}`);
+
+      if (Array.isArray(response) && response.length > 0) {
+        setAssetData(response[0]);
+      } else if (response && typeof response === 'object') {
+        setAssetData(response);
+      } else {
+        setAssetData({});
+      }
+    } catch (error) {
+      console.error('No se pudo obtener el activo:', error);
+      setAssetData({});
+    }
+  };
+
+  const handleBarcodeScanned = ({ data }) => {
+    if (isProcessing.current || !data) return;
+    isProcessing.current = true;
+
+    setCodigoDetectado(data);
+    setCameraActive(false);
+    fetchAsset(data);
+  };
+
+  const handleManualSearch = () => {
+    if (!codigoManual.trim()) return;
+    setCodigoDetectado(codigoManual);
+    setCameraActive(false);
+    fetchAsset(codigoManual);
+  };
+
+  const handleToggleCamera = () => {
+    const next = !cameraActive;
+    setCameraActive(next);
+    if (next) {
+      // Reset so the camera can scan again
+      isProcessing.current = false;
+      setCodigoDetectado('');
+      setAssetData({});
+    }
+  };
+
+  const estadoColor = {
+    green: '#10b981',
+    yellow: '#f59e0b',
+    red: '#ef4444',
+  }[assetData?.color] ?? '#4a6fa8';
+
+  const renderCameraArea = () => {
+    if (!permission) {
+      // Permissions still loading
+      return (
+        <View style={styles.cameraPlaceholder}>
+          <MaterialIcons name="hourglass-empty" size={40} color="#4a6fa8" />
+          <Text style={styles.cameraPlaceholderText}>Cargando permisos...</Text>
+        </View>
+      );
+    }
+
+    if (!permission.granted) {
+      return (
+        <View style={styles.cameraPlaceholder}>
+          <MaterialIcons name="no-photography" size={40} color="#ef4444" />
+          <Text style={styles.cameraPlaceholderText}>Sin acceso a la cámara</Text>
+          <TouchableOpacity style={styles.permissionBtn} onPress={requestPermission}>
+            <Text style={styles.permissionBtnText}>Conceder permiso</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (!cameraActive) {
+      return (
+        <View style={styles.cameraPlaceholder}>
+          <MaterialIcons name="videocam-off" size={40} color="#4a6fa8" />
+          <Text style={styles.cameraPlaceholderText}>Cámara desactivada</Text>
+        </View>
+      );
+    }
+
+    return (
+      <CameraView
+        style={styles.camera}
+        facing="back"
+        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        onBarcodeScanned={handleBarcodeScanned}
+      />
+    );
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -20,8 +128,10 @@ export default function ScanQrScreen() {
         </View>
         <View style={styles.cameraStatus}>
           <View style={styles.statusPulse} />
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Cámara Activa</Text>
+          <View style={[styles.statusDot, { backgroundColor: cameraActive ? '#10b981' : '#4a6fa8' }]} />
+          <Text style={[styles.statusText, { color: cameraActive ? '#10b981' : '#4a6fa8' }]}>
+            {cameraActive ? 'Cámara Activa' : 'Cámara Inactiva'}
+          </Text>
         </View>
       </View>
 
@@ -34,13 +144,25 @@ export default function ScanQrScreen() {
           <View style={[styles.corner, styles.bottomLeft]} />
           <View style={[styles.corner, styles.bottomRight]} />
 
-          {/* Center reticle */}
-          <View style={styles.reticle}>
-            <MaterialIcons name="qr-code-scanner" size={52} color="#0055e5" style={{ opacity: 0.35 }} />
-          </View>
+          {/* Camera or placeholder */}
+          {renderCameraArea()}
 
-          {/* Scan line */}
-          <View style={styles.scanLine} />
+          {/* Toggle camera button */}
+          <TouchableOpacity style={styles.cameraToggleBtn} onPress={handleToggleCamera}>
+            <MaterialIcons
+              name={cameraActive ? 'videocam' : 'videocam-off'}
+              size={18}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
+
+          {/* Bottom status pill */}
+          <View style={styles.scanStatusPill}>
+            <MaterialIcons name="qr-code-scanner" size={13} color="#ffffff" />
+            <Text style={styles.scanStatusText}>
+              {codigoDetectado ? `Código: ${codigoDetectado}` : 'Alinea el código QR dentro del marco'}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.scannerFooter}>
@@ -63,9 +185,11 @@ export default function ScanQrScreen() {
               style={styles.input}
               placeholder="ID del activo"
               placeholderTextColor="#3a5070"
+              value={codigoManual}
+              onChangeText={setCodigoManual}
             />
           </View>
-          <TouchableOpacity style={styles.searchBtn}>
+          <TouchableOpacity style={styles.searchBtn} onPress={handleManualSearch}>
             <Text style={styles.searchBtnText}>Buscar</Text>
             <MaterialIcons name="arrow-forward" size={14} color="#ffffff" />
           </TouchableOpacity>
@@ -89,14 +213,20 @@ export default function ScanQrScreen() {
               <MaterialIcons name="laptop" size={22} color="#4d8aff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.assetName}>Dell Precision 5570</Text>
+              <Text style={styles.assetName}>
+                {assetData?.nombre || 'Sin activo seleccionado'}
+              </Text>
               <View style={styles.codeTag}>
-                <Text style={styles.codeTagText}>OPH-AST-0921</Text>
+                <Text style={styles.codeTagText}>
+                  {assetData?.id_activo || 'N/A'}
+                </Text>
               </View>
             </View>
-            <View style={styles.activeStatusBadge}>
-              <View style={styles.activeStatusDot} />
-              <Text style={styles.activeStatusText}>Activo</Text>
+            <View style={[styles.activeStatusBadge, { borderColor: `${estadoColor}33`, backgroundColor: `${estadoColor}1a` }]}>
+              <View style={[styles.activeStatusDot, { backgroundColor: estadoColor }]} />
+              <Text style={[styles.activeStatusText, { color: estadoColor }]}>
+                {assetData?.estado || 'N/A'}
+              </Text>
             </View>
           </View>
 
@@ -106,20 +236,22 @@ export default function ScanQrScreen() {
           <View style={styles.detailGrid}>
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Categoría</Text>
-              <Text style={styles.detailValue}>Laptop / Tecnología</Text>
+              <Text style={styles.detailValue}>{assetData?.categoria || 'N/A'}</Text>
             </View>
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Encargado</Text>
               <View style={styles.assignedRow}>
                 <View style={styles.userAvatar}>
-                  <Text style={styles.userInitials}>JS</Text>
+                  <Text style={styles.userInitials}>
+                    {assetData?.encargado?.charAt(0) || '?'}
+                  </Text>
                 </View>
-                <Text style={styles.detailValue}>John Smith</Text>
+                <Text style={styles.detailValue}>{assetData?.encargado || 'N/A'}</Text>
               </View>
             </View>
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Ubicación</Text>
-              <Text style={styles.detailValue}>HQ · Piso 3</Text>
+              <Text style={styles.detailValue}>{assetData?.ubicacion || 'N/A'}</Text>
             </View>
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Último escaneo</Text>
@@ -268,31 +400,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
+  camera: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  cameraPlaceholder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cameraPlaceholderText: {
+    color: '#4a6fa8',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  permissionBtn: {
+    marginTop: 6,
+    backgroundColor: '#0055e5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  permissionBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   corner: {
     position: 'absolute',
     width: 28,
     height: 28,
     borderColor: '#0055e5',
+    zIndex: 10,
   },
   topLeft:    { top: 20, left: 20, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 4 },
   topRight:   { top: 20, right: 20, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 4 },
   bottomLeft: { bottom: 20, left: 20, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 4 },
   bottomRight:{ bottom: 20, right: 20, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 4 },
-  reticle: {
-    width: 100,
-    height: 100,
+  cameraToggleBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30,45,70,0.8)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
   },
-  scanLine: {
+  scanStatusPill: {
     position: 'absolute',
-    left: 24,
-    right: 24,
-    height: 1.5,
-    backgroundColor: '#0055e5',
-    opacity: 0.5,
-    top: '45%',
-    borderRadius: 1,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(30,45,70,0.85)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  scanStatusText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '500',
   },
   scannerFooter: {
     flexDirection: 'row',
