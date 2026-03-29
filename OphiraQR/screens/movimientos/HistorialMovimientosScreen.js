@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
   StyleSheet,
@@ -8,57 +8,69 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  Alert,
 } from "react-native";
 
-const movimientosMock = [
-  {
-    id: "M001",
-    activo: "Laptop Dell",
-    tipo: "Asignación",
-    usuario: "Juan Pérez",
-    fecha: "12/03/2026",
-    hora: "10:32",
-    ubicacion: "Oficina 1",
-    descripcion: "Asignación al área de desarrollo",
-  },
-  {
-    id: "M002",
-    activo: "Router",
-    tipo: "Mantenimiento",
-    usuario: "Soporte TI",
-    fecha: "11/03/2026",
-    hora: "14:10",
-    ubicacion: "Rack principal",
-    descripcion: "Revisión de red",
-  },
-  {
-    id: "M003",
-    activo: "Proyector Epson",
-    tipo: "Traslado",
-    usuario: "María López",
-    fecha: "09/03/2026",
-    hora: "09:05",
-    ubicacion: "Sala A",
-    descripcion: "Traslado a sala de reuniones",
-  },
-  {
-    id: "M004",
-    activo: "Impresora HP",
-    tipo: "Baja",
-    usuario: "Administrador",
-    fecha: "05/03/2026",
-    hora: "16:20",
-    ubicacion: "Almacén",
-    descripcion: "Equipo fuera de servicio",
-  },
-];
+import { api } from "../../services/api";
 
 export default function HistorialMovimientosScreen() {
+  const [movimientos, setMovimientos] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedMovimiento, setSelectedMovimiento] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const filtered = movimientosMock.filter((m) =>
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroUsuario, setFiltroUsuario] = useState("");
+
+  const [usuarios, setUsuarios] = useState([]); // lista de usuarios para filtro
+  const tipos = ["Ingreso", "Salida", "Ubicación", "Baja", "Actualización", "Depreciación"];
+
+
+
+  const obtenerMovimientos = async (tipo = "", usuarioId = "") => {
+    try {
+      let endpoint = "/movimientos";
+      if (tipo) endpoint = `/movimientos/tipo/${tipo}`;
+      else if (usuarioId) endpoint = `/movimientos/usuario/${usuarioId}`;
+
+      const response = await api.get(endpoint);
+      const formateado = response.rows.map(item => ({
+        id: item.id_movimiento.toString(),
+        activo: item.nombre_activo,
+        tipo: item.tipo_movimiento,
+        usuario: item.nombre_usuario,
+        fecha: new Date(item.fecha_movimiento).toLocaleDateString(),
+        hora: new Date(item.fecha_movimiento).toLocaleTimeString(),
+        origen: item.origen ?? "",
+        destino: item.destino ?? "",
+        descripcion: item.descripcion,
+        ubicacion: item.origen && item.destino ? `${item.origen} → ${item.destino}` : "N/A"
+      }));
+
+      setMovimientos(formateado);
+    } catch (error) {
+      console.log("Error al obtener movimientos:", error);
+      Alert.alert("Error", "No se pudieron cargar los movimientos.");
+    }
+  };
+
+  const obtenerUsuarios = async () => {
+    try {
+      
+      const response = await api.get("/usuarios");
+      setUsuarios(response.rows);
+    } catch (error) {
+      console.log("Error al cargar usuarios:", error);
+    }
+  };
+
+
+  useEffect(() => {
+    obtenerMovimientos();
+    obtenerUsuarios();
+  }, []);
+
+  const filtered = movimientos.filter((m) =>
     m.activo.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -68,23 +80,30 @@ export default function HistorialMovimientosScreen() {
   }
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => openDetalle(item)}
-    >
+    <TouchableOpacity style={styles.card} onPress={() => openDetalle(item)}>
       <View style={styles.cardHeader}>
         <Text style={styles.activo}>{item.activo}</Text>
         <Text style={styles.tipo}>{item.tipo}</Text>
       </View>
-
       <Text style={styles.descripcion}>{item.descripcion}</Text>
-
       <View style={styles.cardFooter}>
         <Text style={styles.meta}>{item.fecha}</Text>
         <Text style={styles.meta}>{item.hora}</Text>
       </View>
     </TouchableOpacity>
   );
+
+  const handleFiltroTipo = (tipo) => {
+    setFiltroTipo(tipo);
+    setFiltroUsuario("");
+    obtenerMovimientos(tipo, "");
+  };
+
+  const handleFiltroUsuario = (id) => {
+    setFiltroUsuario(id);
+    setFiltroTipo("");
+    obtenerMovimientos("", id);
+  };
 
   return (
     <View style={styles.container}>
@@ -98,6 +117,38 @@ export default function HistorialMovimientosScreen() {
         onChangeText={setSearch}
       />
 
+      {/* FILTRO TIPO */}
+      <View style={styles.filtroContainer}>
+        <Text style={styles.filtroLabel}>Filtrar por tipo:</Text>
+        <View style={styles.filtroButtons}>
+          {tipos.map(t => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.filtroBtn, filtroTipo === t && styles.filtroBtnActive]}
+              onPress={() => handleFiltroTipo(t)}
+            >
+              <Text style={styles.filtroText}>{t}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* FILTRO USUARIO */}
+      <View style={styles.filtroContainer}>
+        <Text style={styles.filtroLabel}>Filtrar por usuario:</Text>
+        <View style={styles.filtroButtons}>
+          {usuarios.map(u => (
+            <TouchableOpacity
+              key={u.id_usuario}
+              style={[styles.filtroBtn, filtroUsuario == u.id_usuario && styles.filtroBtnActive]}
+              onPress={() => handleFiltroUsuario(u.id_usuario)}
+            >
+              <Text style={styles.filtroText}>{u.nombre_usuario}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
@@ -110,43 +161,17 @@ export default function HistorialMovimientosScreen() {
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.overlay}>
           <View style={styles.modal}>
-
             {selectedMovimiento && (
               <>
-                <Text style={styles.modalTitle}>
-                  {selectedMovimiento.activo}
-                </Text>
-
-                <Text style={styles.modalTipo}>
-                  {selectedMovimiento.tipo}
-                </Text>
-
+                <Text style={styles.modalTitle}>{selectedMovimiento.activo}</Text>
+                <Text style={styles.modalTipo}>{selectedMovimiento.tipo}</Text>
                 <View style={styles.separator} />
-
-                <Text style={styles.modalText}>
-                  📅 Fecha: {selectedMovimiento.fecha}
-                </Text>
-
-                <Text style={styles.modalText}>
-                  🕒 Hora: {selectedMovimiento.hora}
-                </Text>
-
-                <Text style={styles.modalText}>
-                  👤 Usuario: {selectedMovimiento.usuario}
-                </Text>
-
-                <Text style={styles.modalText}>
-                  📍 Ubicación: {selectedMovimiento.ubicacion}
-                </Text>
-
-                <Text style={styles.modalText}>
-                  🧾 Detalle: {selectedMovimiento.descripcion}
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.closeBtn}
-                  onPress={() => setModalVisible(false)}
-                >
+                <Text style={styles.modalText}>📅 Fecha: {selectedMovimiento.fecha}</Text>
+                <Text style={styles.modalText}>🕒 Hora: {selectedMovimiento.hora}</Text>
+                <Text style={styles.modalText}>👤 Usuario: {selectedMovimiento.usuario}</Text>
+                <Text style={styles.modalText}>📍 Ubicación: {selectedMovimiento.ubicacion}</Text>
+                <Text style={styles.modalText}>🧾 Detalle: {selectedMovimiento.descripcion}</Text>
+                <TouchableOpacity style={styles.closeBtn} onPress={() => setModalVisible(false)}>
                   <Text style={styles.closeText}>Cerrar</Text>
                 </TouchableOpacity>
               </>
@@ -160,6 +185,7 @@ export default function HistorialMovimientosScreen() {
 
 const styles = StyleSheet.create({
 
+  // --- Contenedor principal ---
   container: {
     flex: 1,
     backgroundColor: "#101622",
@@ -167,6 +193,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
 
+  // --- Títulos ---
   title: {
     color: "white",
     fontSize: 22,
@@ -174,14 +201,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  // --- Input de búsqueda ---
   search: {
     backgroundColor: "#0f1724",
     color: "white",
-    padding: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 10,
     marginBottom: 12,
+    fontSize: 14,
   },
 
+  // --- Card de movimiento ---
   card: {
     backgroundColor: "#1a1f2e",
     padding: 14,
@@ -203,13 +234,14 @@ const styles = StyleSheet.create({
 
   tipo: {
     color: "#5ca9ff",
-    fontWeight: "600",
     fontSize: 12,
+    fontWeight: "600",
   },
 
   descripcion: {
     color: "#bfc9d3",
     marginTop: 6,
+    fontSize: 13,
   },
 
   cardFooter: {
@@ -223,6 +255,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
+  // --- Modal overlay ---
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -230,6 +263,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
 
+  // --- Modal principal ---
   modal: {
     backgroundColor: "#0f1620",
     padding: 20,
@@ -244,12 +278,14 @@ const styles = StyleSheet.create({
 
   modalTipo: {
     color: "#5ca9ff",
+    fontSize: 14,
     marginTop: 4,
     marginBottom: 10,
   },
 
   modalText: {
     color: "#c8d0da",
+    fontSize: 13,
     marginBottom: 6,
   },
 
@@ -261,7 +297,7 @@ const styles = StyleSheet.create({
 
   closeBtn: {
     backgroundColor: "#0066ff",
-    padding: 10,
+    paddingVertical: 10,
     borderRadius: 8,
     marginTop: 12,
   },
@@ -270,5 +306,42 @@ const styles = StyleSheet.create({
     color: "white",
     textAlign: "center",
     fontWeight: "600",
+    fontSize: 14,
+  },
+
+  // --- Filtros (opcional si agregas filtros luego) ---
+  filtroContainer: {
+    marginVertical: 8,
+  },
+
+  filtroLabel: {
+    color: "white",
+    marginBottom: 4,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+
+  filtroButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+
+  filtroBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#1a1f2e",
+    borderRadius: 8,
+    marginRight: 6,
+    marginBottom: 6,
+  },
+
+  filtroBtnActive: {
+    backgroundColor: "#0066ff",
+  },
+
+  filtroText: {
+    color: "white",
+    fontSize: 13,
   },
 });
