@@ -14,8 +14,11 @@ const formatDate = (iso) => {
   }) + ' ' + d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 };
 
-const initials = (nombre = '', apellido = '') =>
-  `${nombre.charAt(0)}${apellido.charAt(0)}`.toUpperCase();
+const initials = (nombre, apellido) => {
+  const n = typeof nombre === 'string' ? nombre : '';
+  const a = typeof apellido === 'string' ? apellido : '';
+  return `${n.charAt(0)}${a.charAt(0)}`.toUpperCase();
+};
 
 const AVATAR_COLORS = ['#0055e5', '#10b981', '#a855f7', '#ef4444', '#f59e0b', '#3b82f6', '#ec4899'];
 const avatarColor = (id) => AVATAR_COLORS[id % AVATAR_COLORS.length];
