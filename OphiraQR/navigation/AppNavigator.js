@@ -14,6 +14,7 @@ import HistorialMovimientosScreen from "../screens/movimientos/HistorialMovimien
 import ScanQrScreen from "../screens/qr/ScanQrScreen";
 
 import ListAuditoriasScreen from "../screens/reportes/ListAuditoriasScreen";
+import CrearAuditoriaScreen from "../screens/reportes/CrearAuditoriasScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -62,6 +63,12 @@ export default function AppNavigator() {
           name="ListAuditoriasScreen"
           component={ListAuditoriasScreen}
           options={{ title: "Lista de Auditorías" }}
+        />
+
+        <Stack.Screen 
+          name="CrearAuditoria" 
+          component={CrearAuditoriaScreen} 
+          options={{ title: "Crear Auditoría" }}
         />
 
       </Stack.Navigator>

@@ -2,7 +2,7 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 
 import { MaterialIcons } from '@expo/vector-icons';
 import { useState, useRef } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { api } from '../services/api';
+import { api } from '../../services/api'
 
 export default function ScanQrScreen() {
   const [permission, requestPermission] = useCameraPermissions();
