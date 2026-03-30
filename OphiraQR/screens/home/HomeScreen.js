@@ -3,6 +3,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { api } from '../../services/api'
+import { useNavigation } from '@react-navigation/native';
 
 
 const DonutChart = ({ data, size = 110, strokeWidth = 18 }) => {
@@ -61,11 +62,13 @@ const DonutChart = ({ data, size = 110, strokeWidth = 18 }) => {
 
 
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedActivo, setSelectedActivo] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
+
+  //const navigation = useNavigation()
 
   const modalAnim = useRef(new Animated.Value(0)).current;
 
@@ -245,7 +248,7 @@ export default function HomeScreen() {
       <View style={[styles.section, { marginBottom: 40 }]}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Activos Recientes</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("Activos")}>
             <Text style={styles.viewAll}>Ver todo →</Text>
           </TouchableOpacity>
         </View>

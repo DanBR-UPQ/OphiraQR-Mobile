@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../../services/api'
 
-export default function ScanQrScreen() {
+export default function ScanQrScreen({navigation}) {
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraActive, setCameraActive] = useState(true);
   const [codigoDetectado, setCodigoDetectado] = useState('');
@@ -411,8 +411,8 @@ export default function ScanQrScreen() {
       <View style={[styles.section, { marginBottom: 40 }]}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionEyebrow}>Recientes</Text>
-          <TouchableOpacity>
-            <Text style={styles.viewAllLink}>Ver historial →</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Activos")}>
+            <Text style={styles.viewAllLink}>Ver activos →</Text>
           </TouchableOpacity>
         </View>
 

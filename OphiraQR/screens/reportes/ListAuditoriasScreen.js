@@ -340,7 +340,7 @@ export default function ListAuditoriasScreen() {
         </View>
       )}
 
-      <Text style={styles.footer}>© 2025 Ophira Technologies · All rights reserved.</Text>
+      <Text style={styles.footer}>© 2026 Ophira Technologies · All rights reserved.</Text>
     </ScrollView>
   );
 }
