@@ -17,16 +17,14 @@ import { api } from "../../services/api";
 
 const TypeBadge = ({ tipo }) => {
   const cfg = {
-    ingreso:         { icon: "arrow-downward", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
-    salida:          { icon: "arrow-upward",   color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
-    "ubicación":     { icon: "place",          color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
-    baja:            { icon: "remove-circle",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-    "actualización": { icon: "autorenew",      color: "#a855f7", bg: "rgba(168,85,247,0.12)" },
-    "depreciación":  { icon: "trending-down",  color: "#06b6d4", bg: "rgba(6,182,212,0.12)"  },
+    ingreso:         { icon: "arrow-downward", color: "#10b981", bg: "rgba(16,185,129,0.18)" },
+    salida:          { icon: "arrow-upward",   color: "#ef4444", bg: "rgba(239,68,68,0.18)"  },
+    "ubicación":     { icon: "place",          color: "#3b82f6", bg: "rgba(59,130,246,0.18)" },
+    baja:            { icon: "remove-circle",  color: "#f59e0b", bg: "rgba(245,158,11,0.18)" },
+    "actualización": { icon: "autorenew",      color: "#a855f7", bg: "rgba(168,85,247,0.18)" },
+    "depreciación":  { icon: "trending-down",  color: "#06b6d4", bg: "rgba(6,182,212,0.18)"  },
   };
-
-  const c = cfg[tipo?.toLowerCase()] ?? { icon: "info", color: "#64748b", bg: "rgba(100,116,139,0.12)" };
-
+  const c = cfg[tipo?.toLowerCase()] ?? { icon: "info", color: "#64748b", bg: "rgba(100,116,139,0.18)" };
   return (
     <View style={[styles.typeBadge, { backgroundColor: c.bg }]}>
       <MaterialIcons name={c.icon} size={11} color={c.color} />
@@ -37,16 +35,16 @@ const TypeBadge = ({ tipo }) => {
 
 const MovCard = ({ item, onPress, index }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(18)).current;
+  const slideAnim = useRef(new Animated.Value(16)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 340, delay: index * 55, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 340, delay: index * 55, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 320, delay: index * 50, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 320, delay: index * 50, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  const cfg = {
+  const colorMap = {
     ingreso:         "#10b981",
     salida:          "#ef4444",
     "ubicación":     "#3b82f6",
@@ -54,18 +52,18 @@ const MovCard = ({ item, onPress, index }) => {
     "actualización": "#a855f7",
     "depreciación":  "#06b6d4",
   };
-  const accentColor = cfg[item.tipo?.toLowerCase()] ?? "#64748b";
+  const accent = colorMap[item.tipo?.toLowerCase()] ?? "#64748b";
 
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
       <TouchableOpacity
-        style={[styles.card, { borderLeftColor: accentColor }]}
+        style={[styles.card, { borderLeftColor: accent }]}
         onPress={() => onPress(item)}
         activeOpacity={0.75}
       >
         <View style={styles.cardTop}>
-          <View style={[styles.cardIconWrap, { backgroundColor: accentColor + "18" }]}>
-            <MaterialIcons name="inventory" size={16} color={accentColor} />
+          <View style={[styles.cardIconWrap, { backgroundColor: accent + "28" }]}>
+            <MaterialIcons name="inventory" size={17} color={accent} />
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.cardActivo} numberOfLines={1}>{item.activo}</Text>
@@ -90,7 +88,7 @@ const MovCard = ({ item, onPress, index }) => {
             <Text style={styles.cardFooterText}>{item.hora}</Text>
           </View>
           <View style={{ flex: 1 }} />
-          <MaterialIcons name="chevron-right" size={14} color="#1e3a5f" />
+          <MaterialIcons name="chevron-right" size={14} color="#2a4a6a" />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -124,21 +122,15 @@ export default function HistorialMovimientosScreen() {
       const endpoint = usuarioId ? `/movimientos/usuario/${usuarioId}` : "/movimientos";
       const response = await api.get(endpoint);
       const data = response?.rows || [];
-
       const formateado = data.map((item) => ({
         id: item.id_movimiento?.toString(),
         activo: item.nombre_activo || "Sin nombre",
         tipo: item.tipo_movimiento || "N/A",
         usuario: item.nombre_usuario || "N/A",
-        fecha: item.fecha_movimiento
-          ? new Date(item.fecha_movimiento).toLocaleDateString()
-          : "N/A",
-        hora: item.fecha_movimiento
-          ? new Date(item.fecha_movimiento).toLocaleTimeString()
-          : "N/A",
+        fecha: item.fecha_movimiento ? new Date(item.fecha_movimiento).toLocaleDateString() : "N/A",
+        hora: item.fecha_movimiento ? new Date(item.fecha_movimiento).toLocaleTimeString() : "N/A",
         descripcion: item.descripcion || "Sin descripción",
       }));
-
       setMovimientos(formateado);
     } catch (error) {
       console.log("ERROR:", error?.response?.data || error);
@@ -219,7 +211,8 @@ export default function HistorialMovimientosScreen() {
                   style={[styles.chip, active && styles.chipActive]}
                   onPress={() => handleFiltroUsuario(u.id_usuario)}
                 >
-                  <MaterialIcons name="person" size={11} color={active ? "#fff" : "#4a6fa8"} style={{ marginRight: 3 }} />
+                  {active && <View style={styles.chipDot} />}
+                  <MaterialIcons name="person" size={11} color={active ? "#dce8f5" :"#4a6fa8"} style={{ marginRight: 4 }} />
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>{u.nombre_usuario}</Text>
                 </TouchableOpacity>
               );
@@ -247,23 +240,20 @@ export default function HistorialMovimientosScreen() {
       <Modal visible={modalVisible} animationType="none" transparent>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeModal}>
           <Animated.View
-            style={[
-              styles.modal,
-              {
-                transform: [
-                  { scale: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
-                  { translateY: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
-                ],
-                opacity: modalAnim,
-              },
-            ]}
+            style={[styles.modal, {
+              transform: [
+                { scale: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+                { translateY: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
+              ],
+              opacity: modalAnim,
+            }]}
           >
             {selectedMovimiento && (() => {
               const accent = modalAccent[selectedMovimiento.tipo?.toLowerCase()] ?? "#64748b";
               return (
                 <>
-                  <View style={[styles.modalBand, { backgroundColor: accent + "18" }]}>
-                    <View style={[styles.modalIconCircle, { backgroundColor: accent + "22" }]}>
+                  <View style={[styles.modalBand, { backgroundColor: accent + "22" }]}>
+                    <View style={[styles.modalIconCircle, { backgroundColor: accent + "30" }]}>
                       <MaterialIcons name="inventory" size={22} color={accent} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
@@ -388,6 +378,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#1d3461",
     borderColor: "#2563eb",
   },
+  chipDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#3b82f6",
+    marginRight: 5,
+  },
   chipText: {
     color: "#5a7a9e",
     fontSize: 12,
@@ -403,7 +400,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: "#1a2a42",
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     overflow: "hidden",
     padding: 14,
   },
@@ -413,9 +410,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   cardIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -428,7 +425,7 @@ const styles = StyleSheet.create({
   cardMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    gap: 4,
   },
   cardUsuario: {
     color: "#4a6fa8",
@@ -467,8 +464,8 @@ const styles = StyleSheet.create({
   typeBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 20,
     gap: 4,
   },

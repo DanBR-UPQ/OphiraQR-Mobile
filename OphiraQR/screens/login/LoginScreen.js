@@ -93,9 +93,7 @@ const handleLogin = async () => {
         {/* CTA */}
         <TouchableOpacity style={styles.button} activeOpacity={0.85} onPress={handleLogin}>
           <Text style={styles.buttonText}>Iniciar Sesión</Text>
-          <View style={styles.buttonArrow}>
-            <Text style={styles.buttonArrowText}>→</Text>
-          </View>
+         
         </TouchableOpacity>
 
         <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
