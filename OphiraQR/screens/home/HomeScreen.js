@@ -1,11 +1,8 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Modal, Animated } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { api } from '../../services/api'
-
-
-
 
 
 const DonutChart = ({ data, size = 110, strokeWidth = 18 }) => {
@@ -67,20 +64,42 @@ const DonutChart = ({ data, size = 110, strokeWidth = 18 }) => {
 export default function HomeScreen() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedActivo, setSelectedActivo] = useState(null);
+  const [detailVisible, setDetailVisible] = useState(false);
+
+  const modalAnim = useRef(new Animated.Value(0)).current;
+
+  const openModal = (item) => {
+    setSelectedActivo(item);
+    setDetailVisible(true);
+    Animated.spring(modalAnim, { toValue: 1, tension: 70, friction: 10, useNativeDriver: true }).start();
+  };
+
+  const closeModal = () => {
+    Animated.timing(modalAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setDetailVisible(false));
+  };
 
   const cargarDatos = async () => {
     try {
       const datos = await api.get("/assets/activosUser")
-      //const datos = await api.get("/assets/")
 
       const formateado = datos.rows.map(item => ({
         id: item.id_activo,
         nombre: item.nombre,
         descripcion: item.descripcion,
-        estado: item.estado_nombre, 
+        estado: item.estado_nombre,
         categoria: item.categoria_nombre,
         ubicacion: item.id_aula,
-        fecha: item.fecha_compra
+        tipoAula: item.tipo_aula,
+        numeroAula: item.numero_aula,
+        fecha: item.fecha_compra,
+        modelo: item.modelo,
+        numeroSerie: item.numero_serie,
+        precioCompra: item.precio_compra,
+        valorActual: item.valor_actual,
+        vidaUtilAnios: item.vida_util_anios,
+        fechaRegistro: item.fecha_registro,
+        multiparte: item.multiparte,
       }))
 
       setData(formateado)
@@ -149,17 +168,6 @@ export default function HomeScreen() {
             <MaterialIcons name="person" size={20} color="#4a6fa8" />
           </View>
         </View>
-
-        <View style={styles.searchContainer}>
-          <MaterialIcons name="search" size={18} color="#3a5070" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar activos..."
-            placeholderTextColor="#3a5070"
-          />
-          <View style={styles.searchDivider} />
-          <MaterialIcons name="tune" size={18} color="#3a5070" />
-        </View>
       </View>
 
       {/* Metric Cards — 2x2 grid */}
@@ -181,7 +189,6 @@ export default function HomeScreen() {
           </View>
           <Text style={styles.metricValue}>{inactivos}</Text>
           <Text style={styles.metricLabel}>Inactivos</Text>
-          {/* <Text style={[styles.metricChange, { color: '#ff6b35' }]}>⚠ 3 overdue</Text> */}
         </View>
 
         {/* Card 3 */}
@@ -208,9 +215,9 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Distribución de Activos</Text>
-          <TouchableOpacity style={styles.moreBtn}>
+          {/* <TouchableOpacity style={styles.moreBtn}>
             <MaterialIcons name="more-horiz" size={18} color="#7a8fa6" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         <View style={styles.card}>
@@ -237,7 +244,7 @@ export default function HomeScreen() {
       {/* Actividad Reciente */}
       <View style={[styles.section, { marginBottom: 40 }]}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Actividad Reciente</Text>
+          <Text style={styles.sectionTitle}>Activos Recientes</Text>
           <TouchableOpacity>
             <Text style={styles.viewAll}>Ver todo →</Text>
           </TouchableOpacity>
@@ -247,11 +254,9 @@ export default function HomeScreen() {
           {/* Table header */}
           <View style={styles.tableHeader}>
             <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Activo</Text>
-            <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: 'center' }]}>Estado</Text>
-            <Text style={[styles.tableHeaderCell, { flex: 1.5, textAlign: 'right' }]}>Ubicación</Text>
+            <Text style={[styles.tableHeaderCell, { flex: 1.5, textAlign: 'center' }]}>Estado</Text>
+            <Text style={[styles.tableHeaderCell, { flex: 0.9, textAlign: 'right' }]}>Ubicación</Text>
           </View>
-
-          {/* Row */}
 
           {recientesLista.length === 0 ? (
             <Text style={{ color: '#5a7a9e', padding: 16 }}>
@@ -259,8 +264,13 @@ export default function HomeScreen() {
             </Text>
           ) : (
             recientesLista.map((item, i) => (
-              <View key={i} style={[styles.tableRow, item.isLast && { borderBottomWidth: 0 }]}>
-                <View style={[styles.tableRowCell, { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+              <TouchableOpacity
+                key={i}
+                style={[styles.tableRow, i === recientesLista.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={() => openModal(item)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.tableRowCell, { flex: 3, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
                   <View style={styles.assetIconWrap}>
                     <MaterialIcons name="inventory" size={16} color="#4a6fa8" />
                   </View>
@@ -270,27 +280,138 @@ export default function HomeScreen() {
                   </View>
                 </View>
 
-                <View style={[styles.tableRowCell, { flex: 1.2, alignItems: 'center' }]}>
+                <View style={[styles.tableRowCell, { flex: 1.5, alignItems: 'center' }]}>
                   <View style={[
                     styles.statusBadge,
                     { backgroundColor: item.estado === "Activo" ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }
                   ]}>
                     <Text style={[styles.statusText, { color: item.estado === "Activo" ? "#10b981" : "#ef4444" }]}>
-                    {item.estado}
-                  </Text>
+                      {item.estado}
+                    </Text>
                   </View>
                 </View>
 
-                <View style={[styles.tableRowCell, { flex: 1.5, alignItems: 'flex-end' }]}>
+                <View style={[styles.tableRowCell, { flex: 0.9, alignItems: 'flex-end' }]}>
                   <Text style={styles.locationText}>{item.ubicacion}</Text>
                 </View>
-              </View>
-          ))
+              </TouchableOpacity>
+            ))
           )}
-
-          
         </View>
       </View>
+
+      {/* Detail Modal */}
+      <Modal visible={detailVisible} animationType="none" transparent>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeModal}>
+          <Animated.View
+            style={[styles.modal, {
+              transform: [
+                { scale: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+                { translateY: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
+              ],
+              opacity: modalAnim,
+            }]}
+          >
+            {selectedActivo && (() => {
+              const isActivo = selectedActivo.estado === 'Activo';
+              const accent = isActivo ? '#10b981' : selectedActivo.estado === 'Mantenimiento' ? '#f59e0b' : '#ef4444';
+
+              const formatCurrency = (val) =>
+                val ? `$${parseFloat(val).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—';
+
+              const formatDate = (iso) => {
+                if (!iso) return '—';
+                const d = new Date(iso);
+                return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+              };
+
+              const ubicacionLabel = [selectedActivo.tipoAula, selectedActivo.numeroAula, selectedActivo.ubicacion]
+                .filter(Boolean).join(' · ');
+
+              return (
+                <TouchableOpacity activeOpacity={1}>
+                  {/* Header band */}
+                  <View style={[styles.modalHeader, { borderBottomColor: accent + '33' }]}>
+                    <View style={[styles.modalHeaderAccent, { backgroundColor: accent }]} />
+                    <View style={[styles.modalIconCircle, { backgroundColor: accent + '20' }]}>
+                      <MaterialIcons name="inventory-2" size={20} color={accent} />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={styles.modalNombre} numberOfLines={2}>{selectedActivo.nombre}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 }}>
+                        <View style={[styles.modalStatusPill, { backgroundColor: accent + '20', borderColor: accent + '40' }]}>
+                          <View style={[styles.modalStatusDot, { backgroundColor: accent }]} />
+                          <Text style={[styles.modalStatusText, { color: accent }]}>{selectedActivo.estado}</Text>
+                        </View>
+                        <Text style={styles.modalIdChip}>#{selectedActivo.id}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Description */}
+                  {selectedActivo.descripcion ? (
+                    <View style={styles.modalDescRow}>
+                      <Text style={styles.modalDesc}>{selectedActivo.descripcion}</Text>
+                    </View>
+                  ) : null}
+
+                  {/* Info grid */}
+                  <View style={styles.modalGrid}>
+                    <View style={styles.modalGridItem}>
+                      <Text style={styles.modalGridLabel}>Categoría</Text>
+                      <Text style={styles.modalGridValue}>{selectedActivo.categoria || '—'}</Text>
+                    </View>
+                    <View style={styles.modalGridItem}>
+                      <Text style={styles.modalGridLabel}>Ubicación</Text>
+                      <Text style={styles.modalGridValue}>{ubicacionLabel || '—'}</Text>
+                    </View>
+                    <View style={styles.modalGridItem}>
+                      <Text style={styles.modalGridLabel}>Modelo</Text>
+                      <Text style={styles.modalGridValue}>{selectedActivo.modelo || '—'}</Text>
+                    </View>
+                    <View style={styles.modalGridItem}>
+                      <Text style={styles.modalGridLabel}>No. Serie</Text>
+                      <Text style={styles.modalGridValue}>{selectedActivo.numeroSerie || '—'}</Text>
+                    </View>
+                  </View>
+
+                  {/* Divider */}
+                  <View style={styles.modalDivider} />
+
+                  {/* Financial row */}
+                  <View style={styles.modalFinancialRow}>
+                    <View style={styles.modalFinancialItem}>
+                      <Text style={styles.modalGridLabel}>Precio Compra</Text>
+                      <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>{formatCurrency(selectedActivo.precioCompra)}</Text>
+                    </View>
+                    <View style={styles.modalFinancialDivider} />
+                    <View style={styles.modalFinancialItem}>
+                      <Text style={styles.modalGridLabel}>Valor Actual</Text>
+                      <Text style={[styles.modalFinancialValue, { color: accent }]}>{formatCurrency(selectedActivo.valorActual)}</Text>
+                    </View>
+                    <View style={styles.modalFinancialDivider} />
+                    <View style={styles.modalFinancialItem}>
+                      <Text style={styles.modalGridLabel}>Vida Útil</Text>
+                      <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>{selectedActivo.vidaUtilAnios ? `${selectedActivo.vidaUtilAnios} años` : '—'}</Text>
+                    </View>
+                  </View>
+
+                  {/* Footer dates + close */}
+                  <View style={styles.modalFooter}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalFooterLabel}>Comprado</Text>
+                      <Text style={styles.modalFooterValue}>{formatDate(selectedActivo.fecha)}</Text>
+                    </View>
+                    <TouchableOpacity style={[styles.closeBtn, { backgroundColor: accent }]} onPress={closeModal}>
+                      <Text style={styles.closeBtnText}>Cerrar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              );
+            })()}
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -464,70 +585,6 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 24,
   },
-  donutChart: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  donutSegment1: {
-    position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 18,
-    borderColor: '#0055e5',
-    borderTopColor: '#0055e5',
-    borderRightColor: '#0055e5',
-    borderBottomColor: 'transparent',
-    borderLeftColor: 'transparent',
-  },
-  donutSegment2: {
-    position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 18,
-    borderColor: '#0099ff',
-    borderTopColor: 'transparent',
-    borderRightColor: '#0099ff',
-    borderBottomColor: '#0099ff',
-    borderLeftColor: 'transparent',
-  },
-  donutSegment3: {
-    position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 18,
-    borderColor: '#a855f7',
-    borderTopColor: '#a855f7',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#a855f7',
-    borderLeftColor: '#a855f7',
-  },
-  donutCenter: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: '#0b1120',
-    zIndex: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  donutCenterLabel: {
-    fontSize: 10,
-    color: '#5a7a9e',
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  donutCenterValue: {
-    fontSize: 14,
-    color: '#f0f4ff',
-    fontWeight: '700',
-  },
   chartLegend: {
     flex: 1,
     gap: 14,
@@ -618,5 +675,172 @@ const styles = StyleSheet.create({
     color: '#5a7a9e',
     fontWeight: '500',
     textAlign: 'right',
+  },
+
+  // Modal
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(5,10,22,0.8)',
+    justifyContent: 'flex-end',
+    padding: 16,
+    paddingBottom: 32,
+  },
+  modal: {
+    backgroundColor: '#111827',
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1a2a42',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    position: 'relative',
+  },
+  modalHeaderAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+  },
+  modalIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  modalNombre: {
+    color: '#f0f4ff',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  modalStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 5,
+  },
+  modalStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  modalStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  modalIdChip: {
+    color: '#3a5070',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  modalDescRow: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  modalDesc: {
+    color: '#5a7a9e',
+    fontSize: 12,
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  modalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 12,
+    gap: 8,
+  },
+  modalGridItem: {
+    width: '47%',
+    backgroundColor: '#0d1829',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1a2a42',
+    padding: 10,
+  },
+  modalGridLabel: {
+    color: '#3a5070',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  modalGridValue: {
+    color: '#dce8f5',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: '#1a2a42',
+    marginHorizontal: 16,
+  },
+  modalFinancialRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalFinancialItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  modalFinancialDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#1a2a42',
+  },
+  modalFinancialValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 4,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#1a2a42',
+  },
+  modalFooterLabel: {
+    color: '#3a5070',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  modalFooterValue: {
+    color: '#5a7a9e',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  closeBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 11,
+    alignItems: 'center',
+  },
+  closeBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
 });

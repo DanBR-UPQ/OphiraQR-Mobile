@@ -105,6 +105,16 @@ export default function ListActivosScreen() {
         estado: item.estado_nombre,
         categoria: item.categoria_nombre,
         ubicacion: item.id_aula,
+        tipoAula: item.tipo_aula,
+        numeroAula: item.numero_aula,
+        fecha: item.fecha_compra,
+        modelo: item.modelo,
+        numeroSerie: item.numero_serie,
+        precioCompra: item.precio_compra,
+        valorActual: item.valor_actual,
+        vidaUtilAnios: item.vida_util_anios,
+        fechaRegistro: item.fecha_registro,
+        multiparte: item.multiparte,
       }));
       setData(formateado);
     } catch (e) {
@@ -255,6 +265,7 @@ export default function ListActivosScreen() {
         }
       />
 
+      {/* Detail Modal */}
       <Modal visible={detailVisible} animationType="none" transparent>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeModal}>
           <Animated.View
@@ -267,75 +278,124 @@ export default function ListActivosScreen() {
             }]}
           >
             {selectedActivo && (() => {
-              const isActivo = selectedActivo.estado === 'Activo';
-              const accent = isActivo ? '#10b981' : '#ef4444';
+              const accent = selectedActivo.estado === 'Activo'
+                ? '#10b981'
+                : selectedActivo.estado === 'Mantenimiento'
+                  ? '#f59e0b'
+                  : '#ef4444';
+
+              const formatCurrency = (val) =>
+                val ? `$${parseFloat(val).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—';
+
+              const formatDate = (iso) => {
+                if (!iso) return '—';
+                const d = new Date(iso);
+                return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+              };
+
+              const ubicacionLabel = [selectedActivo.tipoAula, selectedActivo.numeroAula, selectedActivo.ubicacion]
+                .filter(Boolean).join(' · ');
+
               return (
-                <>
-                  <View style={[styles.modalBand, { backgroundColor: accent + '18' }]}>
-                    <View style={[styles.modalIconCircle, { backgroundColor: accent + '22' }]}>
-                      <MaterialIcons name="inventory-2" size={22} color={accent} />
+                <TouchableOpacity activeOpacity={1}>
+                  {/* Header */}
+                  <View style={[styles.modalHeader, { borderBottomColor: accent + '33' }]}>
+                    <View style={[styles.modalHeaderAccent, { backgroundColor: accent }]} />
+                    <View style={[styles.modalIconCircle, { backgroundColor: accent + '20' }]}>
+                      <MaterialIcons name="inventory-2" size={20} color={accent} />
                     </View>
                     <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.modalActivo}>{selectedActivo.nombre}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: accent + '18', alignSelf: 'flex-start' }]}>
-                        <View style={[styles.statusDot, { backgroundColor: accent }]} />
-                        <Text style={[styles.statusText, { color: accent }]}>{selectedActivo.estado}</Text>
+                      <Text style={styles.modalNombre} numberOfLines={2}>{selectedActivo.nombre}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 }}>
+                        <View style={[styles.modalStatusPill, { backgroundColor: accent + '20', borderColor: accent + '40' }]}>
+                          <View style={[styles.modalStatusDot, { backgroundColor: accent }]} />
+                          <Text style={[styles.modalStatusText, { color: accent }]}>{selectedActivo.estado}</Text>
+                        </View>
+                        <Text style={styles.modalIdChip}>#{selectedActivo.id}</Text>
                       </View>
                     </View>
                   </View>
 
-                  <View style={styles.modalBody}>
-                    {[
-                      { icon: 'tag', label: 'ID', value: String(selectedActivo.id) },
-                      { icon: 'category', label: 'Categoría', value: selectedActivo.categoria },
-                      { icon: 'place', label: 'Ubicación', value: selectedActivo.ubicacion || 'Sin ubicación' },
-                      { icon: 'notes', label: 'Descripción', value: selectedActivo.descripcion },
-                    ].map((row, i) => (
-                      <View key={i} style={styles.modalRow}>
-                        <View style={styles.modalRowIcon}>
-                          <MaterialIcons name={row.icon} size={14} color="#4a6fa8" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.modalRowLabel}>{row.label}</Text>
-                          <Text style={styles.modalRowValue}>{row.value}</Text>
-                        </View>
-                      </View>
-                    ))}
+                  {/* Description */}
+                  {selectedActivo.descripcion ? (
+                    <View style={styles.modalDescRow}>
+                      <Text style={styles.modalDesc}>{selectedActivo.descripcion}</Text>
+                    </View>
+                  ) : null}
+
+                  {/* Info grid */}
+                  <View style={styles.modalGrid}>
+                    <View style={styles.modalGridItem}>
+                      <Text style={styles.modalGridLabel}>Categoría</Text>
+                      <Text style={styles.modalGridValue}>{selectedActivo.categoria || '—'}</Text>
+                    </View>
+                    <View style={styles.modalGridItem}>
+                      <Text style={styles.modalGridLabel}>Ubicación</Text>
+                      <Text style={styles.modalGridValue}>{ubicacionLabel || '—'}</Text>
+                    </View>
+                    <View style={styles.modalGridItem}>
+                      <Text style={styles.modalGridLabel}>Modelo</Text>
+                      <Text style={styles.modalGridValue}>{selectedActivo.modelo || '—'}</Text>
+                    </View>
+                    <View style={styles.modalGridItem}>
+                      <Text style={styles.modalGridLabel}>No. Serie</Text>
+                      <Text style={styles.modalGridValue}>{selectedActivo.numeroSerie || '—'}</Text>
+                    </View>
                   </View>
 
-                  {/* DESCOMENTAR SI SE OCUPA EDITAR Y ELIMINAR */}
-                  {/* <View style={styles.modalActions}>
-                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1d3461', borderColor: '#2563eb' }]} onPress={() => openEdit(selectedActivo)}>
-                      <MaterialIcons name="edit" size={15} color="#3b82f6" />
-                      <Text style={[styles.actionBtnText, { color: '#3b82f6' }]}>Editar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(239,68,68,0.1)', borderColor: '#ef4444' }]} onPress={() => handleDelete(selectedActivo.id)}>
-                      <MaterialIcons name="delete-outline" size={15} color="#ef4444" />
-                      <Text style={[styles.actionBtnText, { color: '#ef4444' }]}>Eliminar</Text>
-                    </TouchableOpacity>
-                  </View> */}
+                  {/* Divider */}
+                  <View style={styles.modalDivider} />
 
-                  <TouchableOpacity style={[styles.closeBtn, { backgroundColor: accent }]} onPress={closeModal}>
-                    <Text style={styles.closeBtnText}>Cerrar</Text>
-                  </TouchableOpacity>
-                </>
+                  {/* Financial row */}
+                  <View style={styles.modalFinancialRow}>
+                    <View style={styles.modalFinancialItem}>
+                      <Text style={styles.modalGridLabel}>Precio Compra</Text>
+                      <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>{formatCurrency(selectedActivo.precioCompra)}</Text>
+                    </View>
+                    <View style={styles.modalFinancialDivider} />
+                    <View style={styles.modalFinancialItem}>
+                      <Text style={styles.modalGridLabel}>Valor Actual</Text>
+                      <Text style={[styles.modalFinancialValue, { color: accent }]}>{formatCurrency(selectedActivo.valorActual)}</Text>
+                    </View>
+                    <View style={styles.modalFinancialDivider} />
+                    <View style={styles.modalFinancialItem}>
+                      <Text style={styles.modalGridLabel}>Vida Útil</Text>
+                      <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>
+                        {selectedActivo.vidaUtilAnios ? `${selectedActivo.vidaUtilAnios} años` : '—'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Footer */}
+                  <View style={styles.modalFooter}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalFooterLabel}>Comprado</Text>
+                      <Text style={styles.modalFooterValue}>{formatDate(selectedActivo.fecha)}</Text>
+                    </View>
+                    <TouchableOpacity style={[styles.closeBtn, { backgroundColor: accent }]} onPress={closeModal}>
+                      <Text style={styles.closeBtnText}>Cerrar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
               );
             })()}
           </Animated.View>
         </TouchableOpacity>
       </Modal>
 
+      {/* Edit Modal */}
       <Modal visible={editVisible} animationType="none" transparent>
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <View style={styles.modalBand}>
+            <View style={[styles.modalHeader, { borderBottomColor: '#1a2a42' }]}>
+              <View style={[styles.modalHeaderAccent, { backgroundColor: '#3b82f6' }]} />
               <View style={[styles.modalIconCircle, { backgroundColor: 'rgba(59,130,246,0.15)' }]}>
                 <MaterialIcons name="edit" size={20} color="#3b82f6" />
               </View>
-              <Text style={[styles.modalActivo, { marginLeft: 12 }]}>Editar Activo</Text>
+              <Text style={[styles.modalNombre, { marginLeft: 12 }]}>Editar Activo</Text>
             </View>
             <View style={styles.modalBody}>
-              <Text style={styles.modalRowLabel}>Nombre</Text>
+              <Text style={styles.modalGridLabel}>Nombre</Text>
               <TextInput
                 style={styles.editInput}
                 value={editValues.nombre}
@@ -343,7 +403,7 @@ export default function ListActivosScreen() {
                 placeholder="Nombre"
                 placeholderTextColor="#3a5070"
               />
-              <Text style={[styles.modalRowLabel, { marginTop: 12 }]}>Descripción</Text>
+              <Text style={[styles.modalGridLabel, { marginTop: 12 }]}>Descripción</Text>
               <TextInput
                 style={[styles.editInput, { height: 80, textAlignVertical: 'top' }]}
                 value={editValues.descripcion}
@@ -353,12 +413,12 @@ export default function ListActivosScreen() {
                 multiline
               />
             </View>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1d3461', borderColor: '#2563eb', flex: 1 }]} onPress={saveEdit}>
-                <Text style={[styles.actionBtnText, { color: '#3b82f6' }]}>Guardar</Text>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={[styles.closeBtn, { backgroundColor: '#1d3461', flex: 1 }]} onPress={saveEdit}>
+                <Text style={[styles.closeBtnText, { color: '#3b82f6' }]}>Guardar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#111827', borderColor: '#1a2a42', flex: 1 }]} onPress={() => setEditVisible(false)}>
-                <Text style={[styles.actionBtnText, { color: '#5a7a9e' }]}>Cancelar</Text>
+              <TouchableOpacity style={[styles.closeBtn, { backgroundColor: '#111827', borderWidth: 1, borderColor: '#1a2a42', flex: 1 }]} onPress={() => setEditVisible(false)}>
+                <Text style={[styles.closeBtnText, { color: '#5a7a9e' }]}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -586,7 +646,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(5,10,22,0.75)',
+    backgroundColor: 'rgba(5,10,22,0.8)',
     justifyContent: 'flex-end',
     padding: 16,
     paddingBottom: 32,
@@ -598,90 +658,162 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1a2a42',
   },
-  modalBand: {
+
+  // Modal — shared new design
+  modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1a2a42',
+    position: 'relative',
+  },
+  modalHeaderAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
   },
   modalIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 8,
   },
-  modalActivo: {
+  modalNombre: {
     color: '#f0f4ff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
+    lineHeight: 20,
   },
-  modalBody: {
-    padding: 18,
-    gap: 14,
-  },
-  modalRow: {
+  modalStatusPill: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  modalRowIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: '#0d1829',
-    borderWidth: 1,
-    borderColor: '#1a2a42',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 5,
   },
-  modalRowLabel: {
-    color: '#3a5070',
+  modalStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  modalStatusText: {
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-    marginBottom: 2,
+    letterSpacing: 0.3,
   },
-  modalRowValue: {
-    color: '#dce8f5',
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: 11,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  actionBtnText: {
-    fontSize: 13,
+  modalIdChip: {
+    color: '#3a5070',
+    fontSize: 11,
     fontWeight: '600',
   },
+  modalDescRow: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  modalDesc: {
+    color: '#5a7a9e',
+    fontSize: 12,
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  modalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 12,
+    gap: 8,
+  },
+  modalGridItem: {
+    width: '47%',
+    backgroundColor: '#0d1829',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1a2a42',
+    padding: 10,
+  },
+  modalGridLabel: {
+    color: '#3a5070',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  modalGridValue: {
+    color: '#dce8f5',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: '#1a2a42',
+    marginHorizontal: 16,
+  },
+  modalFinancialRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalFinancialItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  modalFinancialDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#1a2a42',
+  },
+  modalFinancialValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 4,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#1a2a42',
+  },
+  modalFooterLabel: {
+    color: '#3a5070',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  modalFooterValue: {
+    color: '#5a7a9e',
+    fontSize: 12,
+    fontWeight: '500',
+  },
   closeBtn: {
-    margin: 16,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 11,
     alignItems: 'center',
   },
   closeBtnText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
     letterSpacing: 0.3,
+  },
+  modalBody: {
+    padding: 18,
+    gap: 14,
   },
   editInput: {
     backgroundColor: '#0d1829',

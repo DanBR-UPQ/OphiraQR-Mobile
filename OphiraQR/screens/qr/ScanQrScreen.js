@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, Animated } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../../services/api'
 
@@ -10,13 +10,56 @@ export default function ScanQrScreen() {
   const [codigoDetectado, setCodigoDetectado] = useState('');
   const [codigoManual, setCodigoManual] = useState('');
   const [assetData, setAssetData] = useState({});
+  const [recentScans, setRecentScans] = useState([]);
+  const [selectedActivo, setSelectedActivo] = useState(null);
+  const [detailVisible, setDetailVisible] = useState(false);
   const isProcessing = useRef(false);
+  const modalAnim = useRef(new Animated.Value(0)).current;
 
-  const recentScans = [
-    { id: 1, name: 'LG UltraFine 5K', code: 'OPH-AST-0844', time: '10:15 AM', icon: 'desktop-mac' },
-    { id: 2, name: 'Herman Miller Aeron', code: 'OPH-AST-0102', time: '09:48 AM', icon: 'event-seat' },
-    { id: 3, name: 'HP LaserJet Pro', code: 'OPH-AST-0331', time: 'Ayer', icon: 'print' },
-  ];
+  const openModal = (item) => {
+    setSelectedActivo(item);
+    setDetailVisible(true);
+    Animated.spring(modalAnim, { toValue: 1, tension: 70, friction: 10, useNativeDriver: true }).start();
+  };
+
+  const closeModal = () => {
+    Animated.timing(modalAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setDetailVisible(false));
+  };
+
+  const formatItem = (item) => ({
+    id: item.id_activo,
+    nombre: item.nombre,
+    descripcion: item.descripcion,
+    estado: item.estado_nombre,
+    categoria: item.categoria_nombre,
+    ubicacion: item.id_aula,
+    tipoAula: item.tipo_aula,
+    numeroAula: item.numero_aula,
+    fecha: item.fecha_compra,
+    modelo: item.modelo,
+    numeroSerie: item.numero_serie,
+    precioCompra: item.precio_compra,
+    valorActual: item.valor_actual,
+    vidaUtilAnios: item.vida_util_anios,
+    fechaRegistro: item.fecha_registro,
+    multiparte: item.multiparte,
+  });
+
+  const cargarRecientes = async () => {
+    try {
+      const datos = await api.get('/assets/activosUser');
+      const formateado = datos.rows.map(formatItem);
+      // Sort by registro date and take the 3 most recent
+      const recientes = [...formateado]
+        .sort((a, b) => new Date(b.fechaRegistro) - new Date(a.fechaRegistro))
+        .slice(0, 3);
+      setRecentScans(recientes);
+    } catch (e) {
+      console.log('ERROR cargando recientes:', e);
+    }
+  };
+
+  useEffect(() => { cargarRecientes(); }, []);
 
   const fetchAsset = async (id) => {
     try {
@@ -25,9 +68,7 @@ export default function ScanQrScreen() {
         setAssetData({});
         return;
       }
-
       const response = await api.get(`assets/activo/${idBuscado}`);
-
       if (Array.isArray(response) && response.length > 0) {
         setAssetData(response[0]);
       } else if (response && typeof response === 'object') {
@@ -44,7 +85,6 @@ export default function ScanQrScreen() {
   const handleBarcodeScanned = ({ data }) => {
     if (isProcessing.current || !data) return;
     isProcessing.current = true;
-
     setCodigoDetectado(data);
     setCameraActive(false);
     fetchAsset(data);
@@ -61,7 +101,6 @@ export default function ScanQrScreen() {
     const next = !cameraActive;
     setCameraActive(next);
     if (next) {
-      // Reset so the camera can scan again
       isProcessing.current = false;
       setCodigoDetectado('');
       setAssetData({});
@@ -76,7 +115,6 @@ export default function ScanQrScreen() {
 
   const renderCameraArea = () => {
     if (!permission) {
-      // Permissions still loading
       return (
         <View style={styles.cameraPlaceholder}>
           <MaterialIcons name="hourglass-empty" size={40} color="#4a6fa8" />
@@ -84,7 +122,6 @@ export default function ScanQrScreen() {
         </View>
       );
     }
-
     if (!permission.granted) {
       return (
         <View style={styles.cameraPlaceholder}>
@@ -96,7 +133,6 @@ export default function ScanQrScreen() {
         </View>
       );
     }
-
     if (!cameraActive) {
       return (
         <View style={styles.cameraPlaceholder}>
@@ -105,7 +141,6 @@ export default function ScanQrScreen() {
         </View>
       );
     }
-
     return (
       <CameraView
         style={styles.camera}
@@ -115,6 +150,126 @@ export default function ScanQrScreen() {
       />
     );
   };
+
+  // Shared modal renderer — same design as HomeScreen / ListActivosScreen
+  const renderModal = () => (
+    <Modal visible={detailVisible} animationType="none" transparent>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeModal}>
+        <Animated.View
+          style={[styles.modal, {
+            transform: [
+              { scale: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+              { translateY: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
+            ],
+            opacity: modalAnim,
+          }]}
+        >
+          {selectedActivo && (() => {
+            const accent = selectedActivo.estado === 'Activo'
+              ? '#10b981'
+              : selectedActivo.estado === 'Mantenimiento'
+                ? '#f59e0b'
+                : '#ef4444';
+
+            const formatCurrency = (val) =>
+              val ? `$${parseFloat(val).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—';
+
+            const formatDate = (iso) => {
+              if (!iso) return '—';
+              const d = new Date(iso);
+              return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+            };
+
+            const ubicacionLabel = [selectedActivo.tipoAula, selectedActivo.numeroAula, selectedActivo.ubicacion]
+              .filter(Boolean).join(' · ');
+
+            return (
+              <TouchableOpacity activeOpacity={1}>
+                {/* Header */}
+                <View style={[styles.modalHeader, { borderBottomColor: accent + '33' }]}>
+                  <View style={[styles.modalHeaderAccent, { backgroundColor: accent }]} />
+                  <View style={[styles.modalIconCircle, { backgroundColor: accent + '20' }]}>
+                    <MaterialIcons name="inventory-2" size={20} color={accent} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.modalNombre} numberOfLines={2}>{selectedActivo.nombre}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 }}>
+                      <View style={[styles.modalStatusPill, { backgroundColor: accent + '20', borderColor: accent + '40' }]}>
+                        <View style={[styles.modalStatusDot, { backgroundColor: accent }]} />
+                        <Text style={[styles.modalStatusText, { color: accent }]}>{selectedActivo.estado}</Text>
+                      </View>
+                      <Text style={styles.modalIdChip}>#{selectedActivo.id}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Description */}
+                {selectedActivo.descripcion ? (
+                  <View style={styles.modalDescRow}>
+                    <Text style={styles.modalDesc}>{selectedActivo.descripcion}</Text>
+                  </View>
+                ) : null}
+
+                {/* Info grid */}
+                <View style={styles.modalGrid}>
+                  <View style={styles.modalGridItem}>
+                    <Text style={styles.modalGridLabel}>Categoría</Text>
+                    <Text style={styles.modalGridValue}>{selectedActivo.categoria || '—'}</Text>
+                  </View>
+                  <View style={styles.modalGridItem}>
+                    <Text style={styles.modalGridLabel}>Ubicación</Text>
+                    <Text style={styles.modalGridValue}>{ubicacionLabel || '—'}</Text>
+                  </View>
+                  <View style={styles.modalGridItem}>
+                    <Text style={styles.modalGridLabel}>Modelo</Text>
+                    <Text style={styles.modalGridValue}>{selectedActivo.modelo || '—'}</Text>
+                  </View>
+                  <View style={styles.modalGridItem}>
+                    <Text style={styles.modalGridLabel}>No. Serie</Text>
+                    <Text style={styles.modalGridValue}>{selectedActivo.numeroSerie || '—'}</Text>
+                  </View>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.modalDivider} />
+
+                {/* Financial row */}
+                <View style={styles.modalFinancialRow}>
+                  <View style={styles.modalFinancialItem}>
+                    <Text style={styles.modalGridLabel}>Precio Compra</Text>
+                    <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>{formatCurrency(selectedActivo.precioCompra)}</Text>
+                  </View>
+                  <View style={styles.modalFinancialDivider} />
+                  <View style={styles.modalFinancialItem}>
+                    <Text style={styles.modalGridLabel}>Valor Actual</Text>
+                    <Text style={[styles.modalFinancialValue, { color: accent }]}>{formatCurrency(selectedActivo.valorActual)}</Text>
+                  </View>
+                  <View style={styles.modalFinancialDivider} />
+                  <View style={styles.modalFinancialItem}>
+                    <Text style={styles.modalGridLabel}>Vida Útil</Text>
+                    <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>
+                      {selectedActivo.vidaUtilAnios ? `${selectedActivo.vidaUtilAnios} años` : '—'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Footer */}
+                <View style={styles.modalFooter}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalFooterLabel}>Comprado</Text>
+                    <Text style={styles.modalFooterValue}>{formatDate(selectedActivo.fecha)}</Text>
+                  </View>
+                  <TouchableOpacity style={[styles.closeBtn, { backgroundColor: accent }]} onPress={closeModal}>
+                    <Text style={styles.closeBtnText}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            );
+          })()}
+        </Animated.View>
+      </TouchableOpacity>
+    </Modal>
+  );
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -138,25 +293,14 @@ export default function ScanQrScreen() {
       {/* Scanner frame */}
       <View style={styles.scannerCard}>
         <View style={styles.scannerFrame}>
-          {/* Corner brackets */}
           <View style={[styles.corner, styles.topLeft]} />
           <View style={[styles.corner, styles.topRight]} />
           <View style={[styles.corner, styles.bottomLeft]} />
           <View style={[styles.corner, styles.bottomRight]} />
-
-          {/* Camera or placeholder */}
           {renderCameraArea()}
-
-          {/* Toggle camera button */}
           <TouchableOpacity style={styles.cameraToggleBtn} onPress={handleToggleCamera}>
-            <MaterialIcons
-              name={cameraActive ? 'videocam' : 'videocam-off'}
-              size={18}
-              color="#ffffff"
-            />
+            <MaterialIcons name={cameraActive ? 'videocam' : 'videocam-off'} size={18} color="#ffffff" />
           </TouchableOpacity>
-
-          {/* Bottom status pill */}
           <View style={styles.scanStatusPill}>
             <MaterialIcons name="qr-code-scanner" size={13} color="#ffffff" />
             <Text style={styles.scanStatusText}>
@@ -164,7 +308,6 @@ export default function ScanQrScreen() {
             </Text>
           </View>
         </View>
-
         <View style={styles.scannerFooter}>
           <MaterialIcons name="info-outline" size={13} color="#3a5070" />
           <Text style={styles.instructions}>Alinea el código QR dentro del marco</Text>
@@ -207,32 +350,24 @@ export default function ScanQrScreen() {
         </View>
 
         <View style={styles.assetCard}>
-          {/* Asset title row */}
           <View style={styles.assetTitleRow}>
             <View style={styles.assetIconWrap}>
               <MaterialIcons name="laptop" size={22} color="#4d8aff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.assetName}>
-                {assetData?.nombre || 'Sin activo seleccionado'}
-              </Text>
+              <Text style={styles.assetName}>{assetData?.nombre || 'Sin activo seleccionado'}</Text>
               <View style={styles.codeTag}>
-                <Text style={styles.codeTagText}>
-                  {assetData?.id_activo || 'N/A'}
-                </Text>
+                <Text style={styles.codeTagText}>{assetData?.id_activo || 'N/A'}</Text>
               </View>
             </View>
             <View style={[styles.activeStatusBadge, { borderColor: `${estadoColor}33`, backgroundColor: `${estadoColor}1a` }]}>
               <View style={[styles.activeStatusDot, { backgroundColor: estadoColor }]} />
-              <Text style={[styles.activeStatusText, { color: estadoColor }]}>
-                {assetData?.estado || 'N/A'}
-              </Text>
+              <Text style={[styles.activeStatusText, { color: estadoColor }]}>{assetData?.estado || 'N/A'}</Text>
             </View>
           </View>
 
           <View style={styles.divider} />
 
-          {/* Detail grid */}
           <View style={styles.detailGrid}>
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Categoría</Text>
@@ -242,9 +377,7 @@ export default function ScanQrScreen() {
               <Text style={styles.detailLabel}>Encargado</Text>
               <View style={styles.assignedRow}>
                 <View style={styles.userAvatar}>
-                  <Text style={styles.userInitials}>
-                    {assetData?.encargado?.charAt(0) || '?'}
-                  </Text>
+                  <Text style={styles.userInitials}>{assetData?.encargado?.charAt(0) || '?'}</Text>
                 </View>
                 <Text style={styles.detailValue}>{assetData?.encargado || 'N/A'}</Text>
               </View>
@@ -261,7 +394,6 @@ export default function ScanQrScreen() {
 
           <View style={styles.divider} />
 
-          {/* Actions */}
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.btnPrimary}>
               <Text style={styles.btnPrimaryText}>Ver Detalles</Text>
@@ -285,28 +417,41 @@ export default function ScanQrScreen() {
         </View>
 
         <View style={styles.recentCard}>
-          {recentScans.map((scan, index) => (
-            <TouchableOpacity
-              key={scan.id}
-              style={[styles.recentItem, index === recentScans.length - 1 && { borderBottomWidth: 0 }]}
-            >
-              <View style={styles.recentIconWrap}>
-                <MaterialIcons name={scan.icon} size={16} color="#4a6fa8" />
-              </View>
-              <View style={styles.recentInfo}>
-                <Text style={styles.recentName}>{scan.name}</Text>
-                <View style={styles.codeTag}>
-                  <Text style={styles.codeTagText}>{scan.code}</Text>
+          {recentScans.length === 0 ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: '#3a5070', fontSize: 13 }}>Sin escaneos recientes</Text>
+            </View>
+          ) : (
+            recentScans.map((scan, index) => (
+              <TouchableOpacity
+                key={String(scan.id)}
+                style={[styles.recentItem, index === recentScans.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={() => openModal(scan)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.recentIconWrap}>
+                  <MaterialIcons name="inventory-2" size={16} color="#4a6fa8" />
                 </View>
-              </View>
-              <View style={styles.recentRight}>
-                <Text style={styles.recentTime}>{scan.time}</Text>
-                <MaterialIcons name="chevron-right" size={16} color="#1e2d45" />
-              </View>
-            </TouchableOpacity>
-          ))}
+                <View style={styles.recentInfo}>
+                  <Text style={styles.recentName}>{scan.nombre}</Text>
+                  <View style={styles.codeTag}>
+                    <Text style={styles.codeTagText}>#{scan.id}</Text>
+                  </View>
+                </View>
+                <View style={styles.recentRight}>
+                  <View style={[
+                    styles.recentStatusDot,
+                    { backgroundColor: scan.estado === 'Activo' ? '#10b981' : scan.estado === 'Mantenimiento' ? '#f59e0b' : '#ef4444' }
+                  ]} />
+                  <MaterialIcons name="chevron-right" size={16} color="#1e2d45" />
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </View>
+
+      {renderModal()}
     </ScrollView>
   );
 }
@@ -374,10 +519,8 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#10b981',
   },
   statusText: {
-    color: '#10b981',
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -402,17 +545,11 @@ const styles = StyleSheet.create({
   },
   camera: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 0, left: 0, right: 0, bottom: 0,
   },
   cameraPlaceholder: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 10,
@@ -447,10 +584,8 @@ const styles = StyleSheet.create({
   bottomRight:{ bottom: 20, right: 20, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 4 },
   cameraToggleBtn: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 36,
-    height: 36,
+    top: 12, right: 12,
+    width: 36, height: 36,
     borderRadius: 8,
     backgroundColor: 'rgba(30,45,70,0.8)',
     justifyContent: 'center',
@@ -555,7 +690,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Section wrapper
+  // Section
   section: {
     marginBottom: 20,
   },
@@ -601,7 +736,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Asset card
+  // Asset card (scanned result)
   assetCard: {
     backgroundColor: '#111827',
     borderRadius: 14,
@@ -651,31 +786,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(16,185,129,0.1)',
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(16,185,129,0.2)',
   },
   activeStatusDot: {
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#10b981',
   },
   activeStatusText: {
-    color: '#10b981',
     fontSize: 10,
     fontWeight: '700',
   },
-
   divider: {
     height: 1,
     backgroundColor: '#111f35',
     marginHorizontal: 16,
   },
-
   detailGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -718,7 +847,6 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '800',
   },
-
   actionRow: {
     flexDirection: 'row',
     gap: 10,
@@ -800,12 +928,180 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   recentRight: {
-    alignItems: 'flex-end',
-    gap: 4,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
-  recentTime: {
-    color: '#4a6fa8',
+  recentStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+
+  // Modal
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(5,10,22,0.8)',
+    justifyContent: 'flex-end',
+    padding: 16,
+    paddingBottom: 32,
+  },
+  modal: {
+    backgroundColor: '#111827',
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1a2a42',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    position: 'relative',
+  },
+  modalHeaderAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+  },
+  modalIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  modalNombre: {
+    color: '#f0f4ff',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  modalStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 5,
+  },
+  modalStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  modalStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  modalIdChip: {
+    color: '#3a5070',
     fontSize: 11,
+    fontWeight: '600',
+  },
+  modalDescRow: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  modalDesc: {
+    color: '#5a7a9e',
+    fontSize: 12,
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  modalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 12,
+    gap: 8,
+  },
+  modalGridItem: {
+    width: '47%',
+    backgroundColor: '#0d1829',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1a2a42',
+    padding: 10,
+  },
+  modalGridLabel: {
+    color: '#3a5070',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  modalGridValue: {
+    color: '#dce8f5',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: '#1a2a42',
+    marginHorizontal: 16,
+  },
+  modalFinancialRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalFinancialItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  modalFinancialDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#1a2a42',
+  },
+  modalFinancialValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 4,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#1a2a42',
+  },
+  modalFooterLabel: {
+    color: '#3a5070',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  modalFooterValue: {
+    color: '#5a7a9e',
+    fontSize: 12,
     fontWeight: '500',
+  },
+  closeBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 11,
+    alignItems: 'center',
+  },
+  closeBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
 });
