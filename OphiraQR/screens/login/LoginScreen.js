@@ -96,10 +96,10 @@ const handleLogin = async () => {
          
         </TouchableOpacity>
 
-        <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
+        {/* <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text> */}
       </View>
 
-      <Text style={styles.footer}>© 2025 Ophira Technologies</Text>
+      <Text style={styles.footer}>© 2026 Ophira Technologies</Text>
 
       <StatusBar style="light" />
     </View>
