@@ -4,41 +4,39 @@ import { useState } from 'react'
 import { api } from '../../services/api'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Alert } from 'react-native'
-
+import { useNavigation } from '@react-navigation/native';
 export default function LoginScreen() {
 
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const navigation = useNavigation();
 
+const handleLogin = async () => {
+  if (!correo || !password) {
+    Alert.alert('Error', 'Completa todos los campos');
+    return;
+  }
 
-  const handleLogin = async () => {
-    if (!correo || !password) {
-      Alert.alert('Error', 'Completa todos los campos');
-      return;
-    }
+  try {
+    setLoading(true);
+    const response = await api.post('/auth/login', {
+      correo,
+      password
+    });
 
-    try {
-      setLoading(true);
-      const response = await api.post('/auth/login', {
-        correo,
-        password
-      });
+    await AsyncStorage.setItem('token', response.token);
 
-      await AsyncStorage.setItem('token', response.token);
+    Alert.alert('Éxito', 'Login correcto');
 
-      Alert.alert('Éxito', 'Login correcto');
+    navigation.replace("MainTabs");
 
-      console.log('Usuario:', response.usuario);
-
-      // TODO: navegar al home
-
-    } catch (error) {
-      Alert.alert('Error', 'Credenciales incorrectas o servidor');
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (error) {
+    Alert.alert('Error', 'Credenciales incorrectas o servidor');
+  } finally {
+    setLoading(false);
+  }
+};
 
 
 

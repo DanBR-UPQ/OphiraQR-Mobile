@@ -1,77 +1,30 @@
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-// Screens
-import NavScreen from "../screens/NavScreen";
-import HomeScreen from "../screens/home/HomeScreen";
+import TabNavigation from "./TabNavigation";
 import LoginScreen from "../screens/login/LoginScreen";
-
-import ListActivosScreen from "../screens/activos/ListActivosScreen";
-
-import HistorialMovimientosScreen from "../screens/movimientos/HistorialMovimientosScreen";
-
-import ScanQrScreen from "../screens/qr/ScanQrScreen";
-
-import ListAuditoriasScreen from "../screens/reportes/ListAuditoriasScreen";
 import CrearAuditoriaScreen from "../screens/reportes/CrearAuditoriasScreen";
 
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Menu">
-
-        <Stack.Screen
-          name="Menu"
-          component={NavScreen}
-          options={{ title: "Menú Principal" }}
-        />
-
-        <Stack.Screen
-          name="HomeScreen"
-          component={HomeScreen}
-          options={{ title: "Home" }}
-        />
-
-        <Stack.Screen
-          name="LoginScreen"
-          component={LoginScreen}
-          options={{ title: "Login" }}
-        />
-
-        <Stack.Screen
-          name="ListActivosScreen"
-          component={ListActivosScreen}
-          options={{ title: "Lista de Activos" }}
-        />
-
-        <Stack.Screen
-          name="HistorialMovimientosScreen"
-          component={HistorialMovimientosScreen}
-          options={{ title: "Historial de Movimientos" }}
-        />
-
-        <Stack.Screen
-          name="ScanQrScreen"
-          component={ScanQrScreen}
-          options={{ title: "Escanear QR" }}
-        />
-
-        <Stack.Screen
-          name="ListAuditoriasScreen"
-          component={ListAuditoriasScreen}
-          options={{ title: "Lista de Auditorías" }}
-        />
-
-        <Stack.Screen 
-          name="CrearAuditoria" 
-          component={CrearAuditoriaScreen} 
-          options={{ title: "Crear Auditoría" }}
-        />
-
-      </Stack.Navigator>
-    </NavigationContainer>
+    <Stack.Navigator initialRouteName="Login">
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="MainTabs"
+        component={TabNavigation}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CrearAuditoria"
+        component={CrearAuditoriaScreen}
+        options={{ title: "Crear Auditoría" }}
+      />
+    </Stack.Navigator>
   );
 }
