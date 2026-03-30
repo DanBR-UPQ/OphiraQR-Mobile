@@ -15,9 +15,9 @@ const formatDate = (iso) => {
 };
 
 const initials = (nombre, apellido) => {
-  const n = typeof nombre === 'string' ? nombre : '';
-  const a = typeof apellido === 'string' ? apellido : '';
-  return `${n.charAt(0)}${a.charAt(0)}`.toUpperCase();
+  const n = nombre?.[0] || '';
+  const a = apellido?.[0] || '';
+  return `${n}${a}`.toUpperCase() || '—';
 };
 
 const AVATAR_COLORS = ['#0055e5', '#10b981', '#a855f7', '#ef4444', '#f59e0b', '#3b82f6', '#ec4899'];
