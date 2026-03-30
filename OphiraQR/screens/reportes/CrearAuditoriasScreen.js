@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { api } from '../../services/api'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -140,31 +141,44 @@ function Stepper({ current }) {
   const steps = ['Ubicación', 'Activos', 'Confirmar'];
   return (
     <View style={styles.stepper}>
-      {steps.map((label, i) => {
-        const idx = i + 1;
-        const done    = idx < current;
-        const active  = idx === current;
-        return (
-          <View key={label} style={styles.stepItem}>
-            <View style={[
-              styles.stepCircle,
-              done   && styles.stepCircleDone,
-              active && styles.stepCircleActive,
-            ]}>
-              {done
-                ? <MaterialIcons name="check" size={13} color="#fff" />
-                : <Text style={[styles.stepNum, active && { color: '#fff' }]}>{idx}</Text>
-              }
-            </View>
-            <Text style={[styles.stepLabel, active && { color: '#f0f4ff' }, done && { color: '#10b981' }]}>
-              {label}
-            </Text>
-            {i < steps.length - 1 && (
-              <View style={[styles.stepLine, done && { backgroundColor: '#10b981' }]} />
-            )}
-          </View>
-        );
-      })}
+      {/* Connecting lines row */}
+      <View style={styles.stepperTrack}>
+        {steps.map((_, i) => {
+          const done = i + 1 < current;
+          return (
+            <React.Fragment key={i}>
+              <View style={[
+                styles.stepCircle,
+                i + 1 < current  && styles.stepCircleDone,
+                i + 1 === current && styles.stepCircleActive,
+              ]}>
+                {i + 1 < current
+                  ? <MaterialIcons name="check" size={13} color="#fff" />
+                  : <Text style={[styles.stepNum, i + 1 === current && { color: '#fff' }]}>{i + 1}</Text>
+                }
+              </View>
+              {i < steps.length - 1 && (
+                <View style={[styles.stepLine, done && { backgroundColor: '#10b981' }]} />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </View>
+      {/* Labels row */}
+      <View style={styles.stepperLabels}>
+        {steps.map((label, i) => (
+          <Text
+            key={label}
+            style={[
+              styles.stepLabel,
+              i + 1 === current && { color: '#f0f4ff' },
+              i + 1 < current  && { color: '#10b981' },
+            ]}
+          >
+            {label}
+          </Text>
+        ))}
+      </View>
     </View>
   );
 }
@@ -624,14 +638,19 @@ const styles = StyleSheet.create({
 
   // Stepper
   stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 24,
   },
-  stepItem: {
+  stepperTrack: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+  },
+  stepperLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  stepItem: {
+    // no longer used — can be removed
   },
   stepCircle: {
     width: 26,
@@ -642,6 +661,7 @@ const styles = StyleSheet.create({
     borderColor: '#1a2a42',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   stepCircleActive: {
     backgroundColor: '#0055e5',
@@ -665,13 +685,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#3a5070',
+    flex: 1,
+    textAlign: 'center',
   },
   stepLine: {
     flex: 1,
     height: 1.5,
     backgroundColor: '#1a2a42',
-    marginHorizontal: 6,
-    minWidth: 20,
   },
 
   // Card
