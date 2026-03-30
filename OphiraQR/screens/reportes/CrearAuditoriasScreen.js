@@ -245,9 +245,22 @@ export default function CrearAuditoriaScreen({ navigation }) {
   // ── build estados_activos JSONB ──
   const buildEstadosActivos = () => {
     const obj = {};
+
     assets.forEach(a => {
-      obj[a.nombre] = a.estadoAuditoria;
+      obj[a.id_activo] = {
+        nombre: a.activo_nombre,
+
+        estado: a.estadoAuditoria,
+
+        ubicado: ['Encontrado', 'Dañado', 'Ubicación Incorrecta']
+          .includes(a.estadoAuditoria),
+
+        categoria: a.categoria_nombre ?? null,
+
+        responsable: a.responsable_info ?? 'Sin responsable',
+      };
     });
+
     return obj;
   };
 
