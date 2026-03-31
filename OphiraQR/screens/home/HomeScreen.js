@@ -342,7 +342,7 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.headerEyebrow}>PANEL DE CONTROL</Text>
             <Text style={styles.headerTitle}>Dashboard</Text>
           </View>
-          <TouchableOpacity style={styles.avatar}>
+          <TouchableOpacity style={styles.avatar} onPress={() => navigation.navigate('Perfil')} activeOpacity={0.7}>
             <MaterialIcons name="person" size={18} color="#4a6fa8" />
           </TouchableOpacity>
         </View>
