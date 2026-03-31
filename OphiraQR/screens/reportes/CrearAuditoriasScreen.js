@@ -3,8 +3,9 @@ import {
   TextInput, ActivityIndicator, Modal, FlatList, Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import React from 'react';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../../services/api'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -183,6 +184,94 @@ function Stepper({ current }) {
   );
 }
 
+// ─── QR Scanner Modal ─────────────────────────────────────────────────────────
+
+function QRScannerModal({ visible, onClose, onScanned }) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const isProcessing = useRef(false);
+
+  // Reset processing flag each time the modal opens
+  useEffect(() => {
+    if (visible) {
+      isProcessing.current = false;
+    }
+  }, [visible]);
+
+  const handleBarcodeScanned = ({ data }) => {
+    if (isProcessing.current || !data) return;
+    isProcessing.current = true;
+    onScanned(data);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={qrModal.overlay}>
+        <TouchableOpacity style={qrModal.backdrop} activeOpacity={1} onPress={onClose} />
+
+        <View style={qrModal.sheet}>
+          <View style={qrModal.handle} />
+
+          {/* Header */}
+          <View style={qrModal.header}>
+            <View style={qrModal.iconWrap}>
+              <MaterialIcons name="qr-code-scanner" size={16} color="#0055e5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={qrModal.title}>Escanear Activo</Text>
+              <Text style={qrModal.subtitle}>Apunta la cámara al código QR del activo</Text>
+            </View>
+            <TouchableOpacity style={qrModal.closeBtn} onPress={onClose}>
+              <MaterialIcons name="close" size={18} color="#4a6fa8" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Camera area */}
+          <View style={qrModal.cameraWrap}>
+            {!permission ? (
+              <View style={qrModal.placeholder}>
+                <ActivityIndicator color="#0055e5" />
+                <Text style={qrModal.placeholderText}>Cargando cámara...</Text>
+              </View>
+            ) : !permission.granted ? (
+              <View style={qrModal.placeholder}>
+                <MaterialIcons name="no-photography" size={40} color="#ef4444" />
+                <Text style={qrModal.placeholderText}>Sin acceso a la cámara</Text>
+                <TouchableOpacity style={qrModal.permissionBtn} onPress={requestPermission}>
+                  <Text style={qrModal.permissionBtnText}>Conceder permiso</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <CameraView
+                  style={StyleSheet.absoluteFill}
+                  facing="back"
+                  barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                  onBarcodeScanned={handleBarcodeScanned}
+                />
+                {/* Corner brackets */}
+                <View style={[qrModal.corner, qrModal.topLeft]} />
+                <View style={[qrModal.corner, qrModal.topRight]} />
+                <View style={[qrModal.corner, qrModal.bottomLeft]} />
+                <View style={[qrModal.corner, qrModal.bottomRight]} />
+                {/* Hint pill */}
+                <View style={qrModal.hintPill}>
+                  <MaterialIcons name="qr-code-scanner" size={12} color="#fff" />
+                  <Text style={qrModal.hintText}>Alinea el QR dentro del marco</Text>
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* Cancel */}
+          <TouchableOpacity style={qrModal.cancelBtn} onPress={onClose}>
+            <Text style={qrModal.cancelText}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── main screen ─────────────────────────────────────────────────────────────
 
 export default function CrearAuditoriaScreen({ navigation }) {
@@ -197,6 +286,10 @@ export default function CrearAuditoriaScreen({ navigation }) {
   const [assets, setAssets]         = useState([]);   // [{ nombre, estado }]
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [assetsError, setAssetsError] = useState(null);
+
+  // Step 2 – QR scanner
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [scanProcessing, setScanProcessing] = useState(false);
 
   // Step 3 – confirm
   const [observaciones, setObservaciones] = useState('');
@@ -255,6 +348,103 @@ export default function CrearAuditoriaScreen({ navigation }) {
   const setAllEstados = (estado) => {
     setAssets(prev => prev.map(a => ({ ...a, estadoAuditoria: estado })));
   };
+
+  // ── QR scan handler ──
+  const handleQRScanned = useCallback(async (scannedId) => {
+    // Close scanner immediately so the user gets feedback
+    setScannerVisible(false);
+    setScanProcessing(true);
+
+    try {
+      const id = String(scannedId).trim();
+
+      // Check if asset is already in the list (i.e., belongs to this aula)
+      const existingIndex = assets.findIndex(
+        a => String(a.id_activo) === id
+      );
+
+      if (existingIndex !== -1) {
+        // ── Asset IS in the auditing location → mark as Encontrado ──
+        setAssets(prev => {
+          const next = [...prev];
+          next[existingIndex] = { ...next[existingIndex], estadoAuditoria: 'Encontrado' };
+          return next;
+        });
+
+        Alert.alert(
+          '✓ Activo encontrado',
+          `"${assets[existingIndex].activo_nombre}" ha sido marcado como Encontrado.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        // ── Asset is NOT in this location → fetch its data ──
+        const res = await api.get(`/assets/id/${id}`);
+
+        // Normalize response shape (matches the patterns in ScanQrScreen)
+        let asset = null;
+        if (res?.rows && typeof res.rows === 'object' && !Array.isArray(res.rows)) {
+          asset = res.rows;
+        } else if (Array.isArray(res?.rows) && res.rows.length > 0) {
+          asset = res.rows[0];
+        } else if (Array.isArray(res) && res.length > 0) {
+          asset = res[0];
+        } else if (res && typeof res === 'object' && !res.rows) {
+          asset = res;
+        }
+
+        if (!asset) {
+          Alert.alert('No encontrado', `No se encontró ningún activo con ID "${id}".`);
+          return;
+        }
+
+        // Check if it was already added as "Ubicación Incorrecta" in a previous scan
+        const alreadyAdded = assets.findIndex(
+          a => String(a.id_activo) === String(asset.id_activo)
+        );
+
+        if (alreadyAdded !== -1) {
+          Alert.alert(
+            'Ya escaneado',
+            `"${asset.nombre}" ya está en la lista con estado "${assets[alreadyAdded].estadoAuditoria}".`
+          );
+          return;
+        }
+
+        // Map /assets/id/:id fields → shape expected by the list & buildEstadosActivos
+        const newAsset = {
+          id_activo:        asset.id_activo,
+          activo_nombre:    asset.nombre,
+          nombre:           asset.nombre,
+          descripcion:      asset.descripcion,
+          modelo:           asset.modelo,
+          numero_serie:     asset.numero_serie,
+          fecha_compra:     asset.fecha_compra,
+          precio_compra:    asset.precio_compra,
+          valor_actual:     asset.valor_actual,
+          vida_util_anios:  asset.vida_util_anios,
+          id_aula:          asset.id_aula,          // original aula (different from selectedAula)
+          tipo_aula:        asset.tipo_aula,
+          categoria_nombre: asset.categoria,
+          responsable_info: asset.responsable ?? 'Sin responsable',
+          estadoAuditoria:  'Ubicación Incorrecta',
+          _scannedExternal: true,                   // flag so UI can highlight it if desired
+        };
+
+        setAssets(prev => [...prev, newAsset]);
+
+        Alert.alert(
+          '⚠ Ubicación incorrecta',
+          `"${asset.nombre}" pertenece a ${asset.id_aula ?? 'otra ubicación'} y ha sido agregado como Ubicación Incorrecta.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (err) {
+      console.error('QR scan error:', err);
+      Alert.alert('Error', 'No se pudo procesar el código QR. Intenta de nuevo.');
+    } finally {
+      setScanProcessing(false);
+    }
+  }, [assets]);
 
   // ── build estados_activos JSONB ──
   const buildEstadosActivos = () => {
@@ -413,6 +603,23 @@ export default function CrearAuditoriaScreen({ navigation }) {
                 <Text style={styles.cardTitle}>Activos — {selectedAula?.id_aula}</Text>
                 <Text style={styles.cardSubtitle}>{assets.length} activos por verificar</Text>
               </View>
+
+              {/* ── QR Scan button ── */}
+              <TouchableOpacity
+                style={[styles.scanQrBtn, scanProcessing && styles.scanQrBtnDisabled]}
+                onPress={() => setScannerVisible(true)}
+                disabled={scanProcessing}
+                activeOpacity={0.8}
+              >
+                {scanProcessing ? (
+                  <ActivityIndicator size="small" color="#4d8aff" />
+                ) : (
+                  <>
+                    <MaterialIcons name="qr-code-scanner" size={15} color="#4d8aff" />
+                    <Text style={styles.scanQrBtnText}>Escanear</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
 
             {/* Quick-set bar */}
@@ -437,14 +644,24 @@ export default function CrearAuditoriaScreen({ navigation }) {
 
             {/* Asset list */}
             {assets.map((asset, idx) => (
-              <View key={asset.nombre + idx} style={[
+              <View key={String(asset.id_activo) + idx} style={[
                 styles.assetRow,
+                asset._scannedExternal && styles.assetRowExternal,
                 idx === assets.length - 1 && { borderBottomWidth: 0 }
               ]}>
                 {/* Index + name */}
                 <View style={styles.assetInfo}>
                   <Text style={styles.assetIndex}>{String(idx + 1).padStart(2, '0')}</Text>
-                  <Text style={styles.assetName} numberOfLines={2}>{asset.nombre}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.assetName} numberOfLines={2}>{asset.activo_nombre}</Text>
+                    {/* Badge for externally-scanned assets */}
+                    {asset._scannedExternal && (
+                      <View style={styles.externalBadge}>
+                        <MaterialIcons name="qr-code" size={9} color="#a855f7" />
+                        <Text style={styles.externalBadgeText}>Escaneado · {asset.id_aula}</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
                 {/* Estado picker */}
                 <AssetEstadoPicker
@@ -530,6 +747,13 @@ export default function CrearAuditoriaScreen({ navigation }) {
         {/* Bottom padding */}
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      {/* ── QR Scanner Modal ── */}
+      <QRScannerModal
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        onScanned={handleQRScanned}
+      />
 
       {/* ── fixed bottom nav ── */}
       <View style={styles.bottomNav}>
@@ -785,6 +1009,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  // QR scan button (Step 2 header)
+  scanQrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,85,229,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,85,229,0.25)',
+  },
+  scanQrBtnDisabled: {
+    opacity: 0.5,
+  },
+  scanQrBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4d8aff',
+    letterSpacing: 0.2,
+  },
+
   // Quick-set
   quickSetBar: {
     flexDirection: 'row',
@@ -828,6 +1074,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#111f35',
     gap: 10,
   },
+  // Highlight for externally-scanned assets
+  assetRowExternal: {
+    backgroundColor: 'rgba(168,85,247,0.04)',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    marginHorizontal: -4,
+  },
   assetInfo: {
     flex: 1,
     flexDirection: 'row',
@@ -847,6 +1100,19 @@ const styles = StyleSheet.create({
     color: '#dce8f5',
     fontWeight: '500',
     lineHeight: 17,
+  },
+  // Small tag shown under name for external assets
+  externalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 3,
+  },
+  externalBadgeText: {
+    fontSize: 9,
+    color: '#a855f7',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   assetPickerBtn: {
     flexDirection: 'row',
@@ -1170,6 +1436,158 @@ const modal = StyleSheet.create({
   cancelBtn: {
     marginHorizontal: 18,
     marginTop: 10,
+    paddingVertical: 13,
+    backgroundColor: '#0d1829',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1a2a42',
+    alignItems: 'center',
+  },
+  cancelText: {
+    color: '#7a8fa6',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});
+
+// ─── QR Scanner modal styles ──────────────────────────────────────────────────
+
+const qrModal = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+  },
+  sheet: {
+    backgroundColor: '#111827',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: '#1a2a42',
+    paddingBottom: 34,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#1a2a42',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 14,
+  },
+
+  // Header row
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 18,
+    marginBottom: 16,
+  },
+  iconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: 'rgba(0,85,229,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,85,229,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#f0f4ff',
+  },
+  subtitle: {
+    fontSize: 11,
+    color: '#4a6fa8',
+    marginTop: 1,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#0d1829',
+    borderWidth: 1,
+    borderColor: '#1a2a42',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Camera
+  cameraWrap: {
+    marginHorizontal: 18,
+    borderRadius: 16,
+    overflow: 'hidden',
+    aspectRatio: 1,
+    backgroundColor: '#060d18',
+    marginBottom: 16,
+    position: 'relative',
+  },
+  placeholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  placeholderText: {
+    color: '#4a6fa8',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  permissionBtn: {
+    marginTop: 6,
+    backgroundColor: '#0055e5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  permissionBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // Corner brackets
+  corner: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderColor: '#0055e5',
+    zIndex: 10,
+  },
+  topLeft:    { top: 16, left: 16, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 4 },
+  topRight:   { top: 16, right: 16, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 4 },
+  bottomLeft: { bottom: 16, left: 16, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 4 },
+  bottomRight:{ bottom: 16, right: 16, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 4 },
+
+  // Hint pill inside camera
+  hintPill: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(30,45,70,0.85)',
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  hintText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+
+  // Cancel
+  cancelBtn: {
+    marginHorizontal: 18,
     paddingVertical: 13,
     backgroundColor: '#0d1829',
     borderRadius: 10,
