@@ -30,7 +30,7 @@ const TabNavigation = () => {
             iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           } else if (route.name === 'QR') {
             iconName = focused ? 'qr-code' : 'qr-code-outline';
-          } else if (route.name === 'Reportes') {
+          } else if (route.name === 'Auditorías') {
             iconName = focused ? 'bar-chart' : 'bar-chart-outline';
           }
 
@@ -40,9 +40,9 @@ const TabNavigation = () => {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Activos" component={ListActivosScreen} />
-      <Tab.Screen name="Movimientos" component={HistorialMovimientosScreen} />
       <Tab.Screen name="QR" component={ScanQrScreen} />
-      <Tab.Screen name="Reportes" component={ListAuditoriasScreen} />
+      <Tab.Screen name="Movimientos" component={HistorialMovimientosScreen} />
+      <Tab.Screen name="Auditorías" component={ListAuditoriasScreen} />
     </Tab.Navigator>
   );
 };
