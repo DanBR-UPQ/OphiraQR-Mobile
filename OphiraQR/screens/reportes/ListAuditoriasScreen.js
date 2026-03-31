@@ -38,6 +38,8 @@ const getAssetEstadoStyle = (estado) => {
     case 'encontrado':    return { bg: 'rgba(16,185,129,0.12)',  text: '#10b981' };
     case 'no encontrado': return { bg: 'rgba(239,68,68,0.12)',   text: '#ef4444' };
     case 'dañado':        return { bg: 'rgba(251,191,36,0.12)',  text: '#fbbf24' };
+    case 'ubicación incorrecta': return { bg: 'rgba(168,85,247,0.12)', text: '#a855f7', icon: 'location-off' };
+    case 'por verificar': return { bg: 'rgba(59,130,246,0.12)', text: '#6b7280', icon: 'help-outline' };
     default:              return { bg: 'rgba(107,114,128,0.12)', text: '#6b7280' };
   }
 };
@@ -57,7 +59,9 @@ const getAssetSummary = (estados_activos) => {
   const found    = entries.filter(e => (e.estado || '').toLowerCase() === 'encontrado').length;
   const missing  = entries.filter(e => (e.estado || '').toLowerCase() === 'no encontrado').length;
   const damaged  = entries.filter(e => (e.estado || '').toLowerCase() === 'dañado').length;
-  return { total: entries.length, found, missing, damaged };
+  const wrongLoc     = entries.filter(e => (e.estado || '').toLowerCase() === 'ubicación incorrecta').length;
+  const toVerify     = entries.filter(e => (e.estado || '').toLowerCase() === 'por verificar').length;
+  return { total: entries.length, found, missing, damaged, wrongLoc, toVerify };
 };
 
 // ─── Asset Detail Modal ──────────────────────────────────────────────────────
@@ -175,6 +179,21 @@ const AuditoriaModal = ({ item, visible, onClose }) => {
                       {sum.found   > 0 && <View style={[modal.summaryPill, { backgroundColor: 'rgba(16,185,129,0.12)' }]}><Text style={[modal.summaryText, { color: '#10b981' }]}>✓ {sum.found} encontrado{sum.found !== 1 ? 's' : ''}</Text></View>}
                       {sum.missing > 0 && <View style={[modal.summaryPill, { backgroundColor: 'rgba(239,68,68,0.12)' }]}><Text style={[modal.summaryText, { color: '#ef4444' }]}>✕ {sum.missing} no encontrado{sum.missing !== 1 ? 's' : ''}</Text></View>}
                       {sum.damaged > 0 && <View style={[modal.summaryPill, { backgroundColor: 'rgba(251,191,36,0.12)' }]}><Text style={[modal.summaryText, { color: '#fbbf24' }]}>⚠ {sum.damaged} dañado{sum.damaged !== 1 ? 's' : ''}</Text></View>}
+                      {sum.wrongLoc > 0 && (
+                        <View style={[modal.summaryPill, { backgroundColor: 'rgba(168,85,247,0.12)' }]}>
+                          <Text style={[modal.summaryText, { color: '#a855f7' }]}>
+                            ⊘ {sum.wrongLoc} ubicación incorrecta
+                          </Text>
+                        </View>
+                      )}
+
+                      {sum.toVerify > 0 && (
+                        <View style={[modal.summaryPill, { backgroundColor: 'rgba(59,130,246,0.12)' }]}>
+                          <Text style={[modal.summaryText, { color: '#3b82f6' }]}>
+                            ? {sum.toVerify} por verificar
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   );
                 })()}
@@ -188,8 +207,11 @@ const AuditoriaModal = ({ item, visible, onClose }) => {
                           <Text style={modal.assetName} numberOfLines={2}>{asset.nombre ?? '—'}</Text>
                           <Text style={modal.assetCategory}>{asset.categoria ?? '—'}</Text>
                         </View>
-                        <View style={[modal.assetBadge, { backgroundColor: as.bg }]}>
-                          <Text style={[modal.assetBadgeText, { color: as.text }]}>{asset.estado ?? '—'}</Text>
+                        <View style={[modal.assetBadge, { backgroundColor: as.bg, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                          {/* <MaterialIcons name={as.icon} size={12} color={as.text} /> */}
+                          <Text style={[modal.assetBadgeText, { color: as.text }]}>
+                            {asset.estado ?? '—'}
+                          </Text>
                         </View>
                       </View>
                       <View style={modal.assetDivider} />
@@ -277,6 +299,8 @@ const AuditoriaCard = ({ item, onPress }) => {
             {summary.found   > 0 && <Text style={styles.summaryGreen}>✓{summary.found}</Text>}
             {summary.missing > 0 && <Text style={styles.summaryRed}>✕{summary.missing}</Text>}
             {summary.damaged > 0 && <Text style={styles.summaryYellow}>⚠{summary.damaged}</Text>}
+            {summary.wrongLoc > 0 && <Text style={{ color: '#a855f7', fontSize: 11, fontWeight: '700' }}>⊘{summary.wrongLoc}</Text>}
+            {summary.toVerify > 0 && <Text style={{ color: '#3b82f6', fontSize: 11, fontWeight: '700' }}>? {summary.toVerify}</Text>}
             <MaterialIcons name="chevron-right" size={14} color="#3a5070" style={{ marginLeft: 4 }} />
           </View>
         )}
@@ -306,10 +330,13 @@ export default function ListAuditoriasScreen() {
     try {
       isRefresh ? setRefreshing(true) : setLoading(true);
       setError(null);
+
       const res = await api.get('/auditorias/');
       const rows = res.rows ?? [];
-      setAllData(rows);
-      setFiltered(rows);
+      const sorted = rows.sort((a, b) => b.id_auditoria - a.id_auditoria);
+
+      setAllData(sorted);
+      setFiltered(sorted);
       setPage(1);
     } catch (e) {
       setError('No se pudo cargar la información. Verifica tu conexión.');
