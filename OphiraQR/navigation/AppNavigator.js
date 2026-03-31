@@ -23,7 +23,7 @@ export default function AppNavigator() {
       <Stack.Screen
         name="CrearAuditoria"
         component={CrearAuditoriaScreen}
-        options={{ title: "Crear Auditoría" }}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
