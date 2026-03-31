@@ -61,21 +61,57 @@ export default function ScanQrScreen({navigation}) {
 
   useEffect(() => { cargarRecientes(); }, []);
 
+  // FIX 1: Correctly parse the API response — endpoint returns { rows: { ...asset } }
   const fetchAsset = async (id) => {
     try {
       const idBuscado = String(id).trim();
+      console.log('QR leido: ' + idBuscado);
       if (!idBuscado) {
         setAssetData({});
         return;
       }
-      const response = await api.get(`assets/activo/${idBuscado}`);
-      if (Array.isArray(response) && response.length > 0) {
-        setAssetData(response[0]);
-      } else if (response && typeof response === 'object') {
-        setAssetData(response);
+      const response = await api.get(`/assets/id/${idBuscado}`);
+      let asset = null;
+
+      if (response?.rows && typeof response.rows === 'object' && !Array.isArray(response.rows)) {
+        // Single asset object under rows key
+        
+        asset = response.rows;
+      } else if (Array.isArray(response?.rows) && response.rows.length > 0) {
+        
+        asset = response.rows[0];
+      } else if (Array.isArray(response) && response.length > 0) {
+        
+        asset = response[0];
+      } else if (response && typeof response === 'object' && !response.rows) {
+        
+        asset = response;
       } else {
         setAssetData({});
       }
+
+      if (asset) {
+        setAssetData(asset);
+
+        openModal({
+          id: asset.id_activo,
+          nombre: asset.nombre,
+          descripcion: asset.descripcion,
+          estado: asset.estado,
+          categoria: asset.categoria,
+          ubicacion: asset.id_aula,
+          tipoAula: asset.tipo_aula,
+          numeroAula: asset.numero_aula,
+          fecha: asset.fecha_compra,
+          modelo: asset.modelo,
+          numeroSerie: asset.numero_serie,
+          precioCompra: asset.precio_compra,
+          valorActual: asset.valor_actual,
+          vidaUtilAnios: asset.vida_util_anios,
+        });
+      }
+
+
     } catch (error) {
       console.error('No se pudo obtener el activo:', error);
       setAssetData({});
@@ -107,6 +143,7 @@ export default function ScanQrScreen({navigation}) {
     }
   };
 
+  // FIX 2: Use correct field names from the API response
   const estadoColor = {
     green: '#10b981',
     yellow: '#f59e0b',
@@ -271,6 +308,14 @@ export default function ScanQrScreen({navigation}) {
     </Modal>
   );
 
+  // Helper to format currency for the scanned asset card
+  const formatCurrency = (val) =>
+    val ? `$${parseFloat(val).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : 'N/A';
+
+  // Build location string for scanned asset
+  const ubicacionScaneada = [assetData?.tipo_aula, assetData?.id_aula]
+    .filter(Boolean).join(' ');
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.bgAccent} />
@@ -355,13 +400,15 @@ export default function ScanQrScreen({navigation}) {
               <MaterialIcons name="laptop" size={22} color="#4d8aff" />
             </View>
             <View style={{ flex: 1 }}>
+              {/* FIX: use assetData.nombre and assetData.id_activo */}
               <Text style={styles.assetName}>{assetData?.nombre || 'Sin activo seleccionado'}</Text>
               <View style={styles.codeTag}>
-                <Text style={styles.codeTagText}>{assetData?.id_activo || 'N/A'}</Text>
+                <Text style={styles.codeTagText}>{assetData?.id_activo ? `#${assetData.id_activo}` : 'N/A'}</Text>
               </View>
             </View>
             <View style={[styles.activeStatusBadge, { borderColor: `${estadoColor}33`, backgroundColor: `${estadoColor}1a` }]}>
               <View style={[styles.activeStatusDot, { backgroundColor: estadoColor }]} />
+              {/* FIX: use assetData.estado (not assetData.estado_nombre) */}
               <Text style={[styles.activeStatusText, { color: estadoColor }]}>{assetData?.estado || 'N/A'}</Text>
             </View>
           </View>
@@ -371,31 +418,53 @@ export default function ScanQrScreen({navigation}) {
           <View style={styles.detailGrid}>
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Categoría</Text>
+              {/* FIX: use assetData.categoria */}
               <Text style={styles.detailValue}>{assetData?.categoria || 'N/A'}</Text>
             </View>
             <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Encargado</Text>
+              <Text style={styles.detailLabel}>Responsable</Text>
               <View style={styles.assignedRow}>
                 <View style={styles.userAvatar}>
-                  <Text style={styles.userInitials}>{assetData?.encargado?.charAt(0) || '?'}</Text>
+                  {/* FIX: use assetData.responsable instead of assetData.encargado */}
+                  <Text style={styles.userInitials}>{assetData?.responsable?.charAt(0) || '?'}</Text>
                 </View>
-                <Text style={styles.detailValue}>{assetData?.encargado || 'N/A'}</Text>
+                <Text style={styles.detailValue}>{assetData?.responsable || 'N/A'}</Text>
               </View>
             </View>
             <View style={styles.detailItem}>
               <Text style={styles.detailLabel}>Ubicación</Text>
-              <Text style={styles.detailValue}>{assetData?.ubicacion || 'N/A'}</Text>
+              {/* FIX: build location from tipo_aula + id_aula */}
+              <Text style={styles.detailValue}>{ubicacionScaneada || 'N/A'}</Text>
             </View>
             <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Último escaneo</Text>
-              <Text style={styles.detailValue}>Hoy, 10:22 AM</Text>
+              <Text style={styles.detailLabel}>Modelo</Text>
+              {/* FIX: show modelo instead of hardcoded time */}
+              <Text style={styles.detailValue}>{assetData?.modelo || 'N/A'}</Text>
             </View>
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.btnPrimary}>
+            <TouchableOpacity
+              style={styles.btnPrimary}
+              onPress={() => assetData?.id_activo && openModal({
+                id: assetData.id_activo,
+                nombre: assetData.nombre,
+                descripcion: assetData.descripcion,
+                estado: assetData.estado,
+                categoria: assetData.categoria,
+                ubicacion: assetData.id_aula,
+                tipoAula: assetData.tipo_aula,
+                numeroAula: assetData.numero_aula,
+                fecha: assetData.fecha_compra,
+                modelo: assetData.modelo,
+                numeroSerie: assetData.numero_serie,
+                precioCompra: assetData.precio_compra,
+                valorActual: assetData.valor_actual,
+                vidaUtilAnios: assetData.vida_util_anios,
+              })}
+            >
               <Text style={styles.btnPrimaryText}>Ver Detalles</Text>
               <MaterialIcons name="arrow-forward" size={14} color="#fff" />
             </TouchableOpacity>
