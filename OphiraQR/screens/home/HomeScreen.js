@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Modal,
   Animated,
   Easing,
   Dimensions,
@@ -23,6 +22,7 @@ import Svg, {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { api } from '../../services/api';
+import ActivoDetailModal from '../../components/ActivoDetailModal';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -357,7 +357,6 @@ export default function HomeScreen({ navigation }) {
   const [selectedActivo, setSelectedActivo] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
 
-  const modalAnim = useRef(new Animated.Value(0)).current;
   const headerFade = useRef(new Animated.Value(0)).current;
   const headerSlide = useRef(new Animated.Value(-16)).current;
   const glowAnim = useRef(new Animated.Value(0.05)).current;
@@ -380,17 +379,24 @@ export default function HomeScreen({ navigation }) {
     ]).start();
   }, []);
 
+  /* ─── Modal handlers ─────────────────────────────────────────────────────── */
   const openModal = (item) => {
     setSelectedActivo(item);
     setDetailVisible(true);
-    Animated.spring(modalAnim, { toValue: 1, tension: 70, friction: 10, useNativeDriver: true }).start();
   };
 
   const closeModal = () => {
-    Animated.timing(modalAnim, { toValue: 0, duration: 200, useNativeDriver: true })
-      .start(() => setDetailVisible(false));
+    setDetailVisible(false);
   };
 
+  const handleAssetUpdate = (updated) => {
+    setData((prev) =>
+      prev.map((d) => (d.id === updated.id ? updated : d))
+    );
+    setSelectedActivo(updated);
+  };
+
+  /* ─── Data loading ───────────────────────────────────────────────────────── */
   const cargarDatos = async () => {
     try {
       const [activosRes, userRes] = await Promise.all([
@@ -428,7 +434,7 @@ export default function HomeScreen({ navigation }) {
 
   useEffect(() => { cargarDatos(); }, []);
 
-  /* Derived stats */
+  /* ─── Derived stats ──────────────────────────────────────────────────────── */
   const activos = data.filter((d) => d.estado === 'Activo').length;
   const inactivos = data.filter((d) => d.estado !== 'Activo').length;
   const colors = ['#3b82f6', '#06b6d4', '#a78bfa', '#34d399', '#f97316'];
@@ -469,293 +475,178 @@ export default function HomeScreen({ navigation }) {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 56 }}
-    >
-      {/* ── Background atmosphere ───────────────────────────────────── */}
-      <Animated.View style={[styles.bgGlow1, { opacity: glowAnim }]} />
-      <Animated.View style={[styles.bgGlow2, { opacity: glowAnim }]} />
-      <Animated.View style={[styles.bgGlow3, { opacity: glowAnim }]} />
-
-      {/* Dot grid overlay */}
-      <Animated.View style={[styles.dotGrid, { opacity: gridAnim }]}>
-        <Svg width={SCREEN_W} height={200} style={{ position: 'absolute', top: 0 }}>
-          {Array.from({ length: 12 }).map((_, row) =>
-            Array.from({ length: 20 }).map((_, col) => (
-              <Circle
-                key={`${row}-${col}`}
-                cx={col * 22 + 11}
-                cy={row * 18 + 9}
-                r={0.8}
-                fill="#1e3a5f"
-                opacity={0.6}
-              />
-            ))
-          )}
-        </Svg>
-      </Animated.View>
-
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <Animated.View style={[styles.header, { opacity: headerFade, transform: [{ translateY: headerSlide }] }]}>
-        <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerGreeting}>{getGreeting()}{userName ? `, ${userName}` : ''}</Text>
-            <Text style={styles.headerTitle}>Dashboard</Text>
-            <View style={styles.headerTagRow}>
-              <View style={styles.liveIndicator}>
-                <Animated.View style={[styles.liveDot, { opacity: glowAnim.interpolate({ inputRange: [0.05, 0.11], outputRange: [0.4, 1] }) }]} />
-                <Text style={styles.liveText}>EN VIVO</Text>
-              </View>
-              <Text style={styles.headerDate}>
-                {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Perfil')} activeOpacity={0.7}>
-            <View style={styles.avatarInner}>
-              <Text style={styles.avatarInitial}>{userName ? userName[0].toUpperCase() : '?'}</Text>
-            </View>
-            <View style={styles.avatarOnline} />
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      {/* ── Portfolio Value Ticker ───────────────────────────────────── */}
-      <ValueTickerCard totalValue={totalValue} activeValue={activeValue} delay={300} />
-
-      {/* ── Hero Stats Row ───────────────────────────────────────────── */}
+    <>
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.heroStrip}
-        contentContainerStyle={styles.heroStripContent}
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 56 }}
       >
-        <HeroStat icon="inventory-2" value={data.length} label="Activos" sub="Registrados" color="#3b82f6" delay={200} />
-        <HeroStat icon="check-circle" value={activos} label="Operativos" sub="Estado activo" color="#34d399" delay={280} trend={12} />
-        <HeroStat icon="report-problem" value={inactivos} label="Inactivos" sub="Fuera de uso" color="#f97316" delay={360} />
-        <HeroStat icon="schedule" value={recientes} label="Este mes" sub="Nuevos activos" color="#a78bfa" delay={440} />
-        <HeroStat icon="category" value={Object.keys(categoriasCount).length} label="Categorías" sub="Tipos distintos" color="#06b6d4" delay={520} />
-      </ScrollView>
+        {/* ── Background atmosphere ───────────────────────────────────── */}
+        <Animated.View style={[styles.bgGlow1, { opacity: glowAnim }]} />
+        <Animated.View style={[styles.bgGlow2, { opacity: glowAnim }]} />
+        <Animated.View style={[styles.bgGlow3, { opacity: glowAnim }]} />
 
-      {/* ── Distribución ────────────────────────────────────────────── */}
-      <View style={styles.section}>
-        <SectionHeader title="Distribución" />
-        <View style={styles.distributionCard}>
-          <View style={styles.distributionRow}>
-            <DonutChart data={categoriasPercent} size={130} />
-            <View style={styles.legendBlock}>
+        {/* Dot grid overlay */}
+        <Animated.View style={[styles.dotGrid, { opacity: gridAnim }]}>
+          <Svg width={SCREEN_W} height={200} style={{ position: 'absolute', top: 0 }}>
+            {Array.from({ length: 12 }).map((_, row) =>
+              Array.from({ length: 20 }).map((_, col) => (
+                <Circle
+                  key={`${row}-${col}`}
+                  cx={col * 22 + 11}
+                  cy={row * 18 + 9}
+                  r={0.8}
+                  fill="#1e3a5f"
+                  opacity={0.6}
+                />
+              ))
+            )}
+          </Svg>
+        </Animated.View>
+
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <Animated.View style={[styles.header, { opacity: headerFade, transform: [{ translateY: headerSlide }] }]}>
+          <View style={styles.headerRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerGreeting}>{getGreeting()}{userName ? `, ${userName}` : ''}</Text>
+              <Text style={styles.headerTitle}>Dashboard</Text>
+              <View style={styles.headerTagRow}>
+                <View style={styles.liveIndicator}>
+                  <Animated.View style={[styles.liveDot, { opacity: glowAnim.interpolate({ inputRange: [0.05, 0.11], outputRange: [0.4, 1] }) }]} />
+                  <Text style={styles.liveText}>EN VIVO</Text>
+                </View>
+                <Text style={styles.headerDate}>
+                  {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.avatarBtn} onPress={() => navigation.navigate('Perfil')} activeOpacity={0.7}>
+              <View style={styles.avatarInner}>
+                <Text style={styles.avatarInitial}>{userName ? userName[0].toUpperCase() : '?'}</Text>
+              </View>
+              <View style={styles.avatarOnline} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {/* ── Portfolio Value Ticker ───────────────────────────────────── */}
+        <ValueTickerCard totalValue={totalValue} activeValue={activeValue} delay={300} />
+
+        {/* ── Hero Stats Row ───────────────────────────────────────────── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.heroStrip}
+          contentContainerStyle={styles.heroStripContent}
+        >
+          <HeroStat icon="inventory-2" value={data.length} label="Activos" sub="Registrados" color="#3b82f6" delay={200} />
+          <HeroStat icon="check-circle" value={activos} label="Operativos" sub="Estado activo" color="#34d399" delay={280} trend={12} />
+          <HeroStat icon="report-problem" value={inactivos} label="Inactivos" sub="Fuera de uso" color="#f97316" delay={360} />
+          <HeroStat icon="schedule" value={recientes} label="Este mes" sub="Nuevos activos" color="#a78bfa" delay={440} />
+          <HeroStat icon="category" value={Object.keys(categoriasCount).length} label="Categorías" sub="Tipos distintos" color="#06b6d4" delay={520} />
+        </ScrollView>
+
+        {/* ── Distribución ────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <SectionHeader title="Distribución" />
+          <View style={styles.distributionCard}>
+            <View style={styles.distributionRow}>
+              <DonutChart data={categoriasPercent} size={130} />
+              <View style={styles.legendBlock}>
+                {categoriasPercent.map((cat, i) => (
+                  <View key={i} style={styles.legendItem}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                      <View style={[styles.legendDot, { backgroundColor: colors[i % colors.length] }]} />
+                      <Text style={styles.legendName} numberOfLines={1}>{cat.nombre}</Text>
+                      <Text style={[styles.legendPct, { color: colors[i % colors.length] }]}>
+                        {Math.round(cat.percent * 100)}%
+                      </Text>
+                    </View>
+                    <View style={styles.legendBarTrack}>
+                      <View style={[styles.legendBarFill, {
+                        width: `${Math.round(cat.percent * 100)}%`,
+                        backgroundColor: colors[i % colors.length],
+                      }]} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Category count pills */}
+            <View style={styles.catPillRow}>
               {categoriasPercent.map((cat, i) => (
-                <View key={i} style={styles.legendItem}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 5 }}>
-                    <View style={[styles.legendDot, { backgroundColor: colors[i % colors.length] }]} />
-                    <Text style={styles.legendName} numberOfLines={1}>{cat.nombre}</Text>
-                    <Text style={[styles.legendPct, { color: colors[i % colors.length] }]}>
-                      {Math.round(cat.percent * 100)}%
-                    </Text>
-                  </View>
-                  <View style={styles.legendBarTrack}>
-                    <View style={[styles.legendBarFill, {
-                      width: `${Math.round(cat.percent * 100)}%`,
-                      backgroundColor: colors[i % colors.length],
-                    }]} />
-                  </View>
+                <View key={i} style={[styles.catPill, { borderColor: colors[i % colors.length] + '50' }]}>
+                  <Text style={[styles.catPillCount, { color: colors[i % colors.length] }]}>{cat.count}</Text>
+                  <Text style={styles.catPillName} numberOfLines={1}>{cat.nombre.split(' ')[0]}</Text>
                 </View>
               ))}
             </View>
           </View>
+        </View>
 
-          {/* Category count pills */}
-          <View style={styles.catPillRow}>
-            {categoriasPercent.map((cat, i) => (
-              <View key={i} style={[styles.catPill, { borderColor: colors[i % colors.length] + '50' }]}>
-                <Text style={[styles.catPillCount, { color: colors[i % colors.length] }]}>{cat.count}</Text>
-                <Text style={styles.catPillName} numberOfLines={1}>{cat.nombre.split(' ')[0]}</Text>
-              </View>
-            ))}
+        {/* ── Estado General / Health bars ────────────────────────────── */}
+        <View style={styles.section}>
+          <SectionHeader title="Estado General" />
+          <View style={styles.healthCard}>
+            <HealthBar
+              label="Activos operativos"
+              value={activos}
+              max={data.length}
+              color="#34d399"
+              delay={100}
+            />
+            <View style={styles.healthDivider} />
+            <HealthBar
+              label="Inactivos / Baja"
+              value={inactivos}
+              max={data.length}
+              color="#f87171"
+              delay={200}
+            />
+            <View style={styles.healthDivider} />
+            <HealthBar
+              label="Registrados este mes"
+              value={recientes}
+              max={Math.max(data.length, 1)}
+              color="#a78bfa"
+              delay={300}
+            />
           </View>
         </View>
-      </View>
 
-      {/* ── Estado General / Health bars ────────────────────────────── */}
-      <View style={styles.section}>
-        <SectionHeader title="Estado General" />
-        <View style={styles.healthCard}>
-          <HealthBar
-            label="Activos operativos"
-            value={activos}
-            max={data.length}
-            color="#34d399"
-            delay={100}
-          />
-          <View style={styles.healthDivider} />
-          <HealthBar
-            label="Inactivos / Baja"
-            value={inactivos}
-            max={data.length}
-            color="#f87171"
-            delay={200}
-          />
-          <View style={styles.healthDivider} />
-          <HealthBar
-            label="Registrados este mes"
-            value={recientes}
-            max={Math.max(data.length, 1)}
-            color="#a78bfa"
-            delay={300}
-          />
-        </View>
-      </View>
-
-      {/* ── Activos Recientes ────────────────────────────────────────── */}
-      <View style={styles.section}>
-        <SectionHeader title="Activos Recientes" action="Ver todos" onAction={() => navigation.navigate('Activos')} />
-        <View style={styles.assetsCard}>
-          {recientesLista.length === 0 ? (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="inbox" size={32} color="#1e2d45" />
-              <Text style={styles.emptyText}>Sin activos registrados</Text>
-            </View>
-          ) : (
-            recientesLista.map((item, i) => (
-              <AssetRow
-                key={item.id}
-                item={item}
-                onPress={openModal}
-                isLast={i === recientesLista.length - 1}
-                delay={i * 70}
-              />
-            ))
-          )}
-        </View>
-      </View>
-
-      {/* ── Quick Actions ────────────────────────────────────────────── */}
-      {/* <View style={styles.section}>
-        <SectionHeader title="Acciones Rápidas" />
-        <View style={styles.actionsRow}>
-          {[
-            { icon: 'Activos', label: 'Buscar', color: '#3b82f6', nav: 'Activos' },
-            { icon: 'bar-chart', label: 'Auditorías', color: '#a78bfa', nav: 'Auditorías' },
-            { icon: 'settings', label: 'QR', color: '#06b6d4', nav: 'Perfil' },
-          ].map(({ icon, label, color, nav }) => (
-            <TouchableOpacity
-              key={label}
-              style={styles.actionBtn}
-              onPress={() => navigation.navigate(nav)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIconWrap, { backgroundColor: color + '18', borderColor: color + '35' }]}>
-                <MaterialIcons name={icon} size={20} color={color} />
+        {/* ── Activos Recientes ────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <SectionHeader title="Activos Recientes" action="Ver todos" onAction={() => navigation.navigate('Activos')} />
+          <View style={styles.assetsCard}>
+            {recientesLista.length === 0 ? (
+              <View style={styles.emptyState}>
+                <MaterialIcons name="inbox" size={32} color="#1e2d45" />
+                <Text style={styles.emptyText}>Sin activos registrados</Text>
               </View>
-              <Text style={styles.actionLabel}>{label}</Text>
-            </TouchableOpacity>
-          ))}
+            ) : (
+              recientesLista.map((item, i) => (
+                <AssetRow
+                  key={item.id}
+                  item={item}
+                  onPress={openModal}
+                  isLast={i === recientesLista.length - 1}
+                  delay={i * 70}
+                />
+              ))
+            )}
+          </View>
         </View>
-      </View> */}
+      </ScrollView>
 
-      {/* ── Modal (untouched) ────────────────────────────────────────── */}
-      <Modal visible={detailVisible} animationType="none" transparent>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeModal}>
-          <Animated.View
-            style={[
-              styles.modal,
-              {
-                transform: [
-                  { scale: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
-                  { translateY: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
-                ],
-                opacity: modalAnim,
-              },
-            ]}
-          >
-            {selectedActivo && (() => {
-              const isActivo = selectedActivo.estado === 'Activo';
-              const accent = isActivo ? '#10b981' : selectedActivo.estado === 'Mantenimiento' ? '#f59e0b' : '#ef4444';
-              const ubicacionLabel = [selectedActivo.tipoAula, selectedActivo.numeroAula, selectedActivo.ubicacion].filter(Boolean).join(' · ');
-
-              return (
-                <TouchableOpacity activeOpacity={1}>
-                  <View style={[styles.modalHeader, { borderBottomColor: accent + '33' }]}>
-                    <View style={[styles.modalHeaderAccent, { backgroundColor: accent }]} />
-                    <View style={[styles.modalIconCircle, { backgroundColor: accent + '20' }]}>
-                      <MaterialIcons name="inventory-2" size={20} color={accent} />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.modalNombre} numberOfLines={2}>{selectedActivo.nombre}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 }}>
-                        <View style={[styles.modalStatusPill, { backgroundColor: accent + '20', borderColor: accent + '40' }]}>
-                          <View style={[styles.modalStatusDot, { backgroundColor: accent }]} />
-                          <Text style={[styles.modalStatusText, { color: accent }]}>{selectedActivo.estado}</Text>
-                        </View>
-                        <Text style={styles.modalIdChip}>#{selectedActivo.id}</Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {selectedActivo.descripcion ? (
-                    <View style={styles.modalDescRow}>
-                      <Text style={styles.modalDesc}>{selectedActivo.descripcion}</Text>
-                    </View>
-                  ) : null}
-
-                  <View style={styles.modalGrid}>
-                    <View style={styles.modalGridItem}>
-                      <Text style={styles.modalGridLabel}>Categoría</Text>
-                      <Text style={styles.modalGridValue}>{selectedActivo.categoria || '—'}</Text>
-                    </View>
-                    <View style={styles.modalGridItem}>
-                      <Text style={styles.modalGridLabel}>Ubicación</Text>
-                      <Text style={styles.modalGridValue}>{ubicacionLabel || '—'}</Text>
-                    </View>
-                    <View style={styles.modalGridItem}>
-                      <Text style={styles.modalGridLabel}>Modelo</Text>
-                      <Text style={styles.modalGridValue}>{selectedActivo.modelo || '—'}</Text>
-                    </View>
-                    <View style={styles.modalGridItem}>
-                      <Text style={styles.modalGridLabel}>No. Serie</Text>
-                      <Text style={styles.modalGridValue}>{selectedActivo.numeroSerie || '—'}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.modalDivider} />
-
-                  <View style={styles.modalFinancialRow}>
-                    <View style={styles.modalFinancialItem}>
-                      <Text style={styles.modalGridLabel}>Precio Compra</Text>
-                      <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>{formatCurrency(selectedActivo.precioCompra)}</Text>
-                    </View>
-                    <View style={styles.modalFinancialDivider} />
-                    <View style={styles.modalFinancialItem}>
-                      <Text style={styles.modalGridLabel}>Valor Actual</Text>
-                      <Text style={[styles.modalFinancialValue, { color: accent }]}>{formatCurrency(selectedActivo.valorActual)}</Text>
-                    </View>
-                    <View style={styles.modalFinancialDivider} />
-                    <View style={styles.modalFinancialItem}>
-                      <Text style={styles.modalGridLabel}>Vida Útil</Text>
-                      <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>
-                        {selectedActivo.vidaUtilAnios ? `${selectedActivo.vidaUtilAnios} años` : '—'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.modalFooter}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.modalFooterLabel}>Comprado</Text>
-                      <Text style={styles.modalFooterValue}>{formatDate(selectedActivo.fecha)}</Text>
-                    </View>
-                    <TouchableOpacity style={[styles.closeBtn, { backgroundColor: accent }]} onPress={closeModal}>
-                      <Text style={styles.closeBtnText}>Cerrar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              );
-            })()}
-          </Animated.View>
-        </TouchableOpacity>
-      </Modal>
-    </ScrollView>
+      {/* ── Activo Detail Modal ──────────────────────────────────────── */}
+      <ActivoDetailModal
+        visible={detailVisible}
+        activo={selectedActivo}
+        onClose={closeModal}
+        onAssetUpdate={handleAssetUpdate}
+      />
+    </>
   );
 }
 
@@ -1240,139 +1131,7 @@ const styles = StyleSheet.create({
   },
   assetDepFill: { height: 3, borderRadius: 2 },
 
-  /* Quick actions */
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  actionBtn: {
-    flex: 1,
-    backgroundColor: '#0a1628',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#1a3050',
-    alignItems: 'center',
-    paddingVertical: 16,
-    gap: 10,
-  },
-  actionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionLabel: { fontSize: 11, color: '#8aabcc', fontWeight: '700' },
-
-  /* Donut */
-  donutCenter: { position: 'absolute', alignItems: 'center' },
-  donutLabel: {
-    color: '#2a4464',
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  donutValue: { color: '#eef2ff', fontSize: 15, fontWeight: '900' },
-
   /* Empty state */
   emptyState: { alignItems: 'center', paddingVertical: 36, gap: 8 },
   emptyText: { color: '#2a4464', fontSize: 13, fontWeight: '500' },
-
-  /* Modal (untouched) */
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(5,10,22,0.8)',
-    justifyContent: 'flex-end',
-    padding: 16,
-    paddingBottom: 32,
-  },
-  modal: {
-    backgroundColor: '#111827',
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#1a2a42',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    position: 'relative',
-  },
-  modalHeaderAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
-  modalIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  modalNombre: { color: '#f0f4ff', fontSize: 15, fontWeight: '700', lineHeight: 20 },
-  modalStatusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 5,
-  },
-  modalStatusDot: { width: 5, height: 5, borderRadius: 3 },
-  modalStatusText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
-  modalIdChip: { color: '#3a5070', fontSize: 11, fontWeight: '600' },
-  modalDescRow: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 4 },
-  modalDesc: { color: '#5a7a9e', fontSize: 12, lineHeight: 18, fontStyle: 'italic' },
-  modalGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
-  modalGridItem: {
-    width: '47%',
-    backgroundColor: '#0d1829',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1a2a42',
-    padding: 10,
-  },
-  modalGridLabel: {
-    color: '#3a5070',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  modalGridValue: { color: '#dce8f5', fontSize: 12, fontWeight: '600', lineHeight: 16 },
-  modalDivider: { height: 1, backgroundColor: '#1a2a42', marginHorizontal: 16 },
-  modalFinancialRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  modalFinancialItem: { flex: 1, alignItems: 'center' },
-  modalFinancialDivider: { width: 1, height: 30, backgroundColor: '#1a2a42' },
-  modalFinancialValue: { fontSize: 14, fontWeight: '700', marginTop: 4 },
-  modalFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 4,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#1a2a42',
-  },
-  modalFooterLabel: {
-    color: '#3a5070',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 3,
-  },
-  modalFooterValue: { color: '#5a7a9e', fontSize: 12, fontWeight: '500' },
-  closeBtn: { paddingHorizontal: 20, paddingVertical: 11, borderRadius: 11, alignItems: 'center' },
-  closeBtnText: { color: '#fff', fontWeight: '700', fontSize: 13, letterSpacing: 0.3 },
 });

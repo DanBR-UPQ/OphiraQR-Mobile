@@ -1,10 +1,11 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, Animated } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useState, useRef, useEffect } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { api } from '../../services/api'
+import { api } from '../../services/api';
+import ActivoDetailModal from '../../components/ActivoDetailModal';
 
-export default function ScanQrScreen({navigation}) {
+export default function ScanQrScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraActive, setCameraActive] = useState(true);
   const [codigoDetectado, setCodigoDetectado] = useState('');
@@ -14,16 +15,29 @@ export default function ScanQrScreen({navigation}) {
   const [selectedActivo, setSelectedActivo] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const isProcessing = useRef(false);
-  const modalAnim = useRef(new Animated.Value(0)).current;
 
   const openModal = (item) => {
     setSelectedActivo(item);
     setDetailVisible(true);
-    Animated.spring(modalAnim, { toValue: 1, tension: 70, friction: 10, useNativeDriver: true }).start();
   };
 
   const closeModal = () => {
-    Animated.timing(modalAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setDetailVisible(false));
+    setDetailVisible(false);
+  };
+
+  const handleAssetUpdate = (updated) => {
+    setRecentScans((prev) =>
+      prev.map((d) => (d.id === updated.id ? updated : d))
+    );
+    if (assetData?.id_activo === updated.id) {
+      setAssetData((prev) => ({
+        ...prev,
+        id_aula: updated.ubicacion,
+        tipo_aula: updated.tipoAula,
+        numero_aula: updated.numeroAula,
+      }));
+    }
+    setSelectedActivo(updated);
   };
 
   const formatItem = (item) => ({
@@ -49,7 +63,6 @@ export default function ScanQrScreen({navigation}) {
     try {
       const datos = await api.get('/assets/activosUser');
       const formateado = datos.rows.map(formatItem);
-      // Sort by registro date and take the 3 most recent
       const recientes = [...formateado]
         .sort((a, b) => new Date(b.fechaRegistro) - new Date(a.fechaRegistro))
         .slice(0, 3);
@@ -61,7 +74,6 @@ export default function ScanQrScreen({navigation}) {
 
   useEffect(() => { cargarRecientes(); }, []);
 
-  // FIX 1: Correctly parse the API response — endpoint returns { rows: { ...asset } }
   const fetchAsset = async (id) => {
     try {
       const idBuscado = String(id).trim();
@@ -74,17 +86,12 @@ export default function ScanQrScreen({navigation}) {
       let asset = null;
 
       if (response?.rows && typeof response.rows === 'object' && !Array.isArray(response.rows)) {
-        // Single asset object under rows key
-        
         asset = response.rows;
       } else if (Array.isArray(response?.rows) && response.rows.length > 0) {
-        
         asset = response.rows[0];
       } else if (Array.isArray(response) && response.length > 0) {
-        
         asset = response[0];
       } else if (response && typeof response === 'object' && !response.rows) {
-        
         asset = response;
       } else {
         setAssetData({});
@@ -92,7 +99,6 @@ export default function ScanQrScreen({navigation}) {
 
       if (asset) {
         setAssetData(asset);
-
         openModal({
           id: asset.id_activo,
           nombre: asset.nombre,
@@ -110,8 +116,6 @@ export default function ScanQrScreen({navigation}) {
           vidaUtilAnios: asset.vida_util_anios,
         });
       }
-
-
     } catch (error) {
       console.error('No se pudo obtener el activo:', error);
       setAssetData({});
@@ -143,7 +147,6 @@ export default function ScanQrScreen({navigation}) {
     }
   };
 
-  // FIX 2: Use correct field names from the API response
   const estadoColor = {
     green: '#10b981',
     yellow: '#f59e0b',
@@ -188,340 +191,217 @@ export default function ScanQrScreen({navigation}) {
     );
   };
 
-  // Shared modal renderer — same design as HomeScreen / ListActivosScreen
-  const renderModal = () => (
-    <Modal visible={detailVisible} animationType="none" transparent>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closeModal}>
-        <Animated.View
-          style={[styles.modal, {
-            transform: [
-              { scale: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
-              { translateY: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
-            ],
-            opacity: modalAnim,
-          }]}
-        >
-          {selectedActivo && (() => {
-            const accent = selectedActivo.estado === 'Activo'
-              ? '#10b981'
-              : selectedActivo.estado === 'Mantenimiento'
-                ? '#f59e0b'
-                : '#ef4444';
-
-            const formatCurrency = (val) =>
-              val ? `$${parseFloat(val).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—';
-
-            const formatDate = (iso) => {
-              if (!iso) return '—';
-              const d = new Date(iso);
-              return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
-            };
-
-            const ubicacionLabel = [selectedActivo.tipoAula, selectedActivo.numeroAula, selectedActivo.ubicacion]
-              .filter(Boolean).join(' · ');
-
-            return (
-              <TouchableOpacity activeOpacity={1}>
-                {/* Header */}
-                <View style={[styles.modalHeader, { borderBottomColor: accent + '33' }]}>
-                  <View style={[styles.modalHeaderAccent, { backgroundColor: accent }]} />
-                  <View style={[styles.modalIconCircle, { backgroundColor: accent + '20' }]}>
-                    <MaterialIcons name="inventory-2" size={20} color={accent} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.modalNombre} numberOfLines={2}>{selectedActivo.nombre}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 }}>
-                      <View style={[styles.modalStatusPill, { backgroundColor: accent + '20', borderColor: accent + '40' }]}>
-                        <View style={[styles.modalStatusDot, { backgroundColor: accent }]} />
-                        <Text style={[styles.modalStatusText, { color: accent }]}>{selectedActivo.estado}</Text>
-                      </View>
-                      <Text style={styles.modalIdChip}>#{selectedActivo.id}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Description */}
-                {selectedActivo.descripcion ? (
-                  <View style={styles.modalDescRow}>
-                    <Text style={styles.modalDesc}>{selectedActivo.descripcion}</Text>
-                  </View>
-                ) : null}
-
-                {/* Info grid */}
-                <View style={styles.modalGrid}>
-                  <View style={styles.modalGridItem}>
-                    <Text style={styles.modalGridLabel}>Categoría</Text>
-                    <Text style={styles.modalGridValue}>{selectedActivo.categoria || '—'}</Text>
-                  </View>
-                  <View style={styles.modalGridItem}>
-                    <Text style={styles.modalGridLabel}>Ubicación</Text>
-                    <Text style={styles.modalGridValue}>{ubicacionLabel || '—'}</Text>
-                  </View>
-                  <View style={styles.modalGridItem}>
-                    <Text style={styles.modalGridLabel}>Modelo</Text>
-                    <Text style={styles.modalGridValue}>{selectedActivo.modelo || '—'}</Text>
-                  </View>
-                  <View style={styles.modalGridItem}>
-                    <Text style={styles.modalGridLabel}>No. Serie</Text>
-                    <Text style={styles.modalGridValue}>{selectedActivo.numeroSerie || '—'}</Text>
-                  </View>
-                </View>
-
-                {/* Divider */}
-                <View style={styles.modalDivider} />
-
-                {/* Financial row */}
-                <View style={styles.modalFinancialRow}>
-                  <View style={styles.modalFinancialItem}>
-                    <Text style={styles.modalGridLabel}>Precio Compra</Text>
-                    <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>{formatCurrency(selectedActivo.precioCompra)}</Text>
-                  </View>
-                  <View style={styles.modalFinancialDivider} />
-                  <View style={styles.modalFinancialItem}>
-                    <Text style={styles.modalGridLabel}>Valor Actual</Text>
-                    <Text style={[styles.modalFinancialValue, { color: accent }]}>{formatCurrency(selectedActivo.valorActual)}</Text>
-                  </View>
-                  <View style={styles.modalFinancialDivider} />
-                  <View style={styles.modalFinancialItem}>
-                    <Text style={styles.modalGridLabel}>Vida Útil</Text>
-                    <Text style={[styles.modalFinancialValue, { color: '#f0f4ff' }]}>
-                      {selectedActivo.vidaUtilAnios ? `${selectedActivo.vidaUtilAnios} años` : '—'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Footer */}
-                <View style={styles.modalFooter}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.modalFooterLabel}>Comprado</Text>
-                    <Text style={styles.modalFooterValue}>{formatDate(selectedActivo.fecha)}</Text>
-                  </View>
-                  <TouchableOpacity style={[styles.closeBtn, { backgroundColor: accent }]} onPress={closeModal}>
-                    <Text style={styles.closeBtnText}>Cerrar</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            );
-          })()}
-        </Animated.View>
-      </TouchableOpacity>
-    </Modal>
-  );
-
-  // Helper to format currency for the scanned asset card
-  const formatCurrency = (val) =>
-    val ? `$${parseFloat(val).toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : 'N/A';
-
-  // Build location string for scanned asset
   const ubicacionScaneada = [assetData?.tipo_aula, assetData?.id_aula]
     .filter(Boolean).join(' ');
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.bgAccent} />
+    <>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.bgAccent} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerEyebrow}>Escáner</Text>
-          <Text style={styles.headerTitle}>Asset Scanner</Text>
-        </View>
-        <View style={styles.cameraStatus}>
-          <View style={styles.statusPulse} />
-          <View style={[styles.statusDot, { backgroundColor: cameraActive ? '#10b981' : '#4a6fa8' }]} />
-          <Text style={[styles.statusText, { color: cameraActive ? '#10b981' : '#4a6fa8' }]}>
-            {cameraActive ? 'Cámara Activa' : 'Cámara Inactiva'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Scanner frame */}
-      <View style={styles.scannerCard}>
-        <View style={styles.scannerFrame}>
-          <View style={[styles.corner, styles.topLeft]} />
-          <View style={[styles.corner, styles.topRight]} />
-          <View style={[styles.corner, styles.bottomLeft]} />
-          <View style={[styles.corner, styles.bottomRight]} />
-          {renderCameraArea()}
-          <TouchableOpacity style={styles.cameraToggleBtn} onPress={handleToggleCamera}>
-            <MaterialIcons name={cameraActive ? 'videocam' : 'videocam-off'} size={18} color="#ffffff" />
-          </TouchableOpacity>
-          <View style={styles.scanStatusPill}>
-            <MaterialIcons name="qr-code-scanner" size={13} color="#ffffff" />
-            <Text style={styles.scanStatusText}>
-              {codigoDetectado ? `Código: ${codigoDetectado}` : 'Alinea el código QR dentro del marco'}
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerEyebrow}>Escáner</Text>
+            <Text style={styles.headerTitle}>Asset Scanner</Text>
+          </View>
+          <View style={styles.cameraStatus}>
+            <View style={styles.statusPulse} />
+            <View style={[styles.statusDot, { backgroundColor: cameraActive ? '#10b981' : '#4a6fa8' }]} />
+            <Text style={[styles.statusText, { color: cameraActive ? '#10b981' : '#4a6fa8' }]}>
+              {cameraActive ? 'Cámara Activa' : 'Cámara Inactiva'}
             </Text>
           </View>
         </View>
-        <View style={styles.scannerFooter}>
-          <MaterialIcons name="info-outline" size={13} color="#3a5070" />
-          <Text style={styles.instructions}>Alinea el código QR dentro del marco</Text>
-        </View>
-      </View>
 
-      {/* Manual Input */}
-      <View style={styles.manualCard}>
-        <View style={styles.manualHeader}>
-          <MaterialIcons name="keyboard" size={15} color="#4a6fa8" />
-          <Text style={styles.manualTitle}>Entrada Manual</Text>
-        </View>
-        <Text style={styles.manualSubtitle}>¿La cámara no funciona? Inserta el ID del activo</Text>
-        <View style={styles.inputRow}>
-          <View style={styles.inputWrap}>
-            <MaterialIcons name="tag" size={15} color="#3a5070" style={{ marginRight: 8 }} />
-            <TextInput
-              style={styles.input}
-              placeholder="ID del activo"
-              placeholderTextColor="#3a5070"
-              value={codigoManual}
-              onChangeText={setCodigoManual}
-            />
-          </View>
-          <TouchableOpacity style={styles.searchBtn} onPress={handleManualSearch}>
-            <Text style={styles.searchBtnText}>Buscar</Text>
-            <MaterialIcons name="arrow-forward" size={14} color="#ffffff" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Scanned asset result */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionEyebrow}>Último Escaneo</Text>
-          <View style={styles.nowBadge}>
-            <View style={styles.nowDot} />
-            <Text style={styles.nowBadgeText}>AHORA</Text>
-          </View>
-        </View>
-
-        <View style={styles.assetCard}>
-          <View style={styles.assetTitleRow}>
-            <View style={styles.assetIconWrap}>
-              <MaterialIcons name="laptop" size={22} color="#4d8aff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              {/* FIX: use assetData.nombre and assetData.id_activo */}
-              <Text style={styles.assetName}>{assetData?.nombre || 'Sin activo seleccionado'}</Text>
-              <View style={styles.codeTag}>
-                <Text style={styles.codeTagText}>{assetData?.id_activo ? `#${assetData.id_activo}` : 'N/A'}</Text>
-              </View>
-            </View>
-            <View style={[styles.activeStatusBadge, { borderColor: `${estadoColor}33`, backgroundColor: `${estadoColor}1a` }]}>
-              <View style={[styles.activeStatusDot, { backgroundColor: estadoColor }]} />
-              {/* FIX: use assetData.estado (not assetData.estado_nombre) */}
-              <Text style={[styles.activeStatusText, { color: estadoColor }]}>{assetData?.estado || 'N/A'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.detailGrid}>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Categoría</Text>
-              {/* FIX: use assetData.categoria */}
-              <Text style={styles.detailValue}>{assetData?.categoria || 'N/A'}</Text>
-            </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Responsable</Text>
-              <View style={styles.assignedRow}>
-                <View style={styles.userAvatar}>
-                  {/* FIX: use assetData.responsable instead of assetData.encargado */}
-                  <Text style={styles.userInitials}>{assetData?.responsable?.charAt(0) || '?'}</Text>
-                </View>
-                <Text style={styles.detailValue}>{assetData?.responsable || 'N/A'}</Text>
-              </View>
-            </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Ubicación</Text>
-              {/* FIX: build location from tipo_aula + id_aula */}
-              <Text style={styles.detailValue}>{ubicacionScaneada || 'N/A'}</Text>
-            </View>
-            <View style={styles.detailItem}>
-              <Text style={styles.detailLabel}>Modelo</Text>
-              {/* FIX: show modelo instead of hardcoded time */}
-              <Text style={styles.detailValue}>{assetData?.modelo || 'N/A'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.btnPrimary}
-              onPress={() => assetData?.id_activo && openModal({
-                id: assetData.id_activo,
-                nombre: assetData.nombre,
-                descripcion: assetData.descripcion,
-                estado: assetData.estado,
-                categoria: assetData.categoria,
-                ubicacion: assetData.id_aula,
-                tipoAula: assetData.tipo_aula,
-                numeroAula: assetData.numero_aula,
-                fecha: assetData.fecha_compra,
-                modelo: assetData.modelo,
-                numeroSerie: assetData.numero_serie,
-                precioCompra: assetData.precio_compra,
-                valorActual: assetData.valor_actual,
-                vidaUtilAnios: assetData.vida_util_anios,
-              })}
-            >
-              <Text style={styles.btnPrimaryText}>Ver Detalles</Text>
-              <MaterialIcons name="arrow-forward" size={14} color="#fff" />
+        {/* Scanner frame */}
+        <View style={styles.scannerCard}>
+          <View style={styles.scannerFrame}>
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
+            {renderCameraArea()}
+            <TouchableOpacity style={styles.cameraToggleBtn} onPress={handleToggleCamera}>
+              <MaterialIcons name={cameraActive ? 'videocam' : 'videocam-off'} size={18} color="#ffffff" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnSecondary}>
-              <MaterialIcons name="history" size={15} color="#4a6fa8" />
-              <Text style={styles.btnSecondaryText}>Historial</Text>
+            <View style={styles.scanStatusPill}>
+              <MaterialIcons name="qr-code-scanner" size={13} color="#ffffff" />
+              <Text style={styles.scanStatusText}>
+                {codigoDetectado ? `Código: ${codigoDetectado}` : 'Alinea el código QR dentro del marco'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.scannerFooter}>
+            <MaterialIcons name="info-outline" size={13} color="#3a5070" />
+            <Text style={styles.instructions}>Alinea el código QR dentro del marco</Text>
+          </View>
+        </View>
+
+        {/* Manual Input */}
+        <View style={styles.manualCard}>
+          <View style={styles.manualHeader}>
+            <MaterialIcons name="keyboard" size={15} color="#4a6fa8" />
+            <Text style={styles.manualTitle}>Entrada Manual</Text>
+          </View>
+          <Text style={styles.manualSubtitle}>¿La cámara no funciona? Inserta el ID del activo</Text>
+          <View style={styles.inputRow}>
+            <View style={styles.inputWrap}>
+              <MaterialIcons name="tag" size={15} color="#3a5070" style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.input}
+                placeholder="ID del activo"
+                placeholderTextColor="#3a5070"
+                value={codigoManual}
+                onChangeText={setCodigoManual}
+              />
+            </View>
+            <TouchableOpacity style={styles.searchBtn} onPress={handleManualSearch}>
+              <Text style={styles.searchBtnText}>Buscar</Text>
+              <MaterialIcons name="arrow-forward" size={14} color="#ffffff" />
             </TouchableOpacity>
           </View>
         </View>
-      </View>
 
-      {/* Recent Scans */}
-      <View style={[styles.section, { marginBottom: 40 }]}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionEyebrow}>Recientes</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Activos")}>
-            <Text style={styles.viewAllLink}>Ver activos →</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.recentCard}>
-          {recentScans.length === 0 ? (
-            <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text style={{ color: '#3a5070', fontSize: 13 }}>Sin escaneos recientes</Text>
+        {/* Scanned asset result */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionEyebrow}>Último Escaneo</Text>
+            <View style={styles.nowBadge}>
+              <View style={styles.nowDot} />
+              <Text style={styles.nowBadgeText}>AHORA</Text>
             </View>
-          ) : (
-            recentScans.map((scan, index) => (
-              <TouchableOpacity
-                key={String(scan.id)}
-                style={[styles.recentItem, index === recentScans.length - 1 && { borderBottomWidth: 0 }]}
-                onPress={() => openModal(scan)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.recentIconWrap}>
-                  <MaterialIcons name="inventory-2" size={16} color="#4a6fa8" />
+          </View>
+
+          <View style={styles.assetCard}>
+            <View style={styles.assetTitleRow}>
+              <View style={styles.assetIconWrap}>
+                <MaterialIcons name="laptop" size={22} color="#4d8aff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.assetName}>{assetData?.nombre || 'Sin activo seleccionado'}</Text>
+                <View style={styles.codeTag}>
+                  <Text style={styles.codeTagText}>{assetData?.id_activo ? `#${assetData.id_activo}` : 'N/A'}</Text>
                 </View>
-                <View style={styles.recentInfo}>
-                  <Text style={styles.recentName}>{scan.nombre}</Text>
-                  <View style={styles.codeTag}>
-                    <Text style={styles.codeTagText}>#{scan.id}</Text>
+              </View>
+              <View style={[styles.activeStatusBadge, { borderColor: `${estadoColor}33`, backgroundColor: `${estadoColor}1a` }]}>
+                <View style={[styles.activeStatusDot, { backgroundColor: estadoColor }]} />
+                <Text style={[styles.activeStatusText, { color: estadoColor }]}>{assetData?.estado || 'N/A'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.detailGrid}>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Categoría</Text>
+                <Text style={styles.detailValue}>{assetData?.categoria || 'N/A'}</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Responsable</Text>
+                <View style={styles.assignedRow}>
+                  <View style={styles.userAvatar}>
+                    <Text style={styles.userInitials}>{assetData?.responsable?.charAt(0) || '?'}</Text>
                   </View>
+                  <Text style={styles.detailValue}>{assetData?.responsable || 'N/A'}</Text>
                 </View>
-                <View style={styles.recentRight}>
-                  <View style={[
-                    styles.recentStatusDot,
-                    { backgroundColor: scan.estado === 'Activo' ? '#10b981' : scan.estado === 'Mantenimiento' ? '#f59e0b' : '#ef4444' }
-                  ]} />
-                  <MaterialIcons name="chevron-right" size={16} color="#1e2d45" />
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-      </View>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Ubicación</Text>
+                <Text style={styles.detailValue}>{ubicacionScaneada || 'N/A'}</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Modelo</Text>
+                <Text style={styles.detailValue}>{assetData?.modelo || 'N/A'}</Text>
+              </View>
+            </View>
 
-      {renderModal()}
-    </ScrollView>
+            <View style={styles.divider} />
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.btnPrimary}
+                onPress={() => assetData?.id_activo && openModal({
+                  id: assetData.id_activo,
+                  nombre: assetData.nombre,
+                  descripcion: assetData.descripcion,
+                  estado: assetData.estado,
+                  categoria: assetData.categoria,
+                  ubicacion: assetData.id_aula,
+                  tipoAula: assetData.tipo_aula,
+                  numeroAula: assetData.numero_aula,
+                  fecha: assetData.fecha_compra,
+                  modelo: assetData.modelo,
+                  numeroSerie: assetData.numero_serie,
+                  precioCompra: assetData.precio_compra,
+                  valorActual: assetData.valor_actual,
+                  vidaUtilAnios: assetData.vida_util_anios,
+                })}
+              >
+                <Text style={styles.btnPrimaryText}>Ver Detalles</Text>
+                <MaterialIcons name="arrow-forward" size={14} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnSecondary}>
+                <MaterialIcons name="history" size={15} color="#4a6fa8" />
+                <Text style={styles.btnSecondaryText}>Historial</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Recent Scans */}
+        <View style={[styles.section, { marginBottom: 40 }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionEyebrow}>Recientes</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Activos')}>
+              <Text style={styles.viewAllLink}>Ver activos →</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.recentCard}>
+            {recentScans.length === 0 ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#3a5070', fontSize: 13 }}>Sin escaneos recientes</Text>
+              </View>
+            ) : (
+              recentScans.map((scan, index) => (
+                <TouchableOpacity
+                  key={String(scan.id)}
+                  style={[styles.recentItem, index === recentScans.length - 1 && { borderBottomWidth: 0 }]}
+                  onPress={() => openModal(scan)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.recentIconWrap}>
+                    <MaterialIcons name="inventory-2" size={16} color="#4a6fa8" />
+                  </View>
+                  <View style={styles.recentInfo}>
+                    <Text style={styles.recentName}>{scan.nombre}</Text>
+                    <View style={styles.codeTag}>
+                      <Text style={styles.codeTagText}>#{scan.id}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.recentRight}>
+                    <View style={[
+                      styles.recentStatusDot,
+                      { backgroundColor: scan.estado === 'Activo' ? '#10b981' : scan.estado === 'Mantenimiento' ? '#f59e0b' : '#ef4444' }
+                    ]} />
+                    <MaterialIcons name="chevron-right" size={16} color="#1e2d45" />
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* ── Activo Detail Modal ── */}
+      <ActivoDetailModal
+        visible={detailVisible}
+        activo={selectedActivo}
+        onClose={closeModal}
+        onAssetUpdate={handleAssetUpdate}
+      />
+    </>
   );
 }
 
@@ -647,10 +527,10 @@ const styles = StyleSheet.create({
     borderColor: '#0055e5',
     zIndex: 10,
   },
-  topLeft:    { top: 20, left: 20, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 4 },
-  topRight:   { top: 20, right: 20, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 4 },
-  bottomLeft: { bottom: 20, left: 20, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 4 },
-  bottomRight:{ bottom: 20, right: 20, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 4 },
+  topLeft:     { top: 20, left: 20, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 4 },
+  topRight:    { top: 20, right: 20, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 4 },
+  bottomLeft:  { bottom: 20, left: 20, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 4 },
+  bottomRight: { bottom: 20, right: 20, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 4 },
   cameraToggleBtn: {
     position: 'absolute',
     top: 12, right: 12,
@@ -1005,172 +885,5 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-  },
-
-  // Modal
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(5,10,22,0.8)',
-    justifyContent: 'flex-end',
-    padding: 16,
-    paddingBottom: 32,
-  },
-  modal: {
-    backgroundColor: '#111827',
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#1a2a42',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    position: 'relative',
-  },
-  modalHeaderAccent: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 3,
-  },
-  modalIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  modalNombre: {
-    color: '#f0f4ff',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  modalStatusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 5,
-  },
-  modalStatusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  modalStatusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  modalIdChip: {
-    color: '#3a5070',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  modalDescRow: {
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  modalDesc: {
-    color: '#5a7a9e',
-    fontSize: 12,
-    lineHeight: 18,
-    fontStyle: 'italic',
-  },
-  modalGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 12,
-    gap: 8,
-  },
-  modalGridItem: {
-    width: '47%',
-    backgroundColor: '#0d1829',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1a2a42',
-    padding: 10,
-  },
-  modalGridLabel: {
-    color: '#3a5070',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  modalGridValue: {
-    color: '#dce8f5',
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 16,
-  },
-  modalDivider: {
-    height: 1,
-    backgroundColor: '#1a2a42',
-    marginHorizontal: 16,
-  },
-  modalFinancialRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  modalFinancialItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  modalFinancialDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#1a2a42',
-  },
-  modalFinancialValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 4,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#1a2a42',
-  },
-  modalFooterLabel: {
-    color: '#3a5070',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 3,
-  },
-  modalFooterValue: {
-    color: '#5a7a9e',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  closeBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius: 11,
-    alignItems: 'center',
-  },
-  closeBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
-    letterSpacing: 0.3,
   },
 });
