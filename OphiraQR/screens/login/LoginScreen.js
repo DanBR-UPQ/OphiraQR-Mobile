@@ -56,7 +56,7 @@ export default function LoginScreen() {
           {/* Logo section */}
           <View style={styles.logoWrapper}>
             <View style={styles.logoRing}>
-              <Image source={require('../../assets/icon.png')} style={styles.logo} />
+              <Image source={require('../../assets/OphiraLogo.png')} style={styles.logo} />
             </View>
           </View>
 
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     borderColor: '#1e3a5f',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0d1829',
+    backgroundColor: '#0b1120',
   },
   logo: {
     width: 56,
