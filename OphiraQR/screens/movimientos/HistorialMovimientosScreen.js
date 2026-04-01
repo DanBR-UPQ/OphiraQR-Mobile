@@ -102,8 +102,18 @@ export default function HistorialMovimientosScreen() {
   const [selectedMovimiento, setSelectedMovimiento] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [filtroUsuario, setFiltroUsuario] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const modalAnim = useRef(new Animated.Value(0)).current;
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      obtenerMovimientos(filtroUsuario),
+      obtenerUsuarios(),
+    ]);
+    setRefreshing(false);
+  };
 
   const openModal = (item) => {
     setSelectedMovimiento(item);
@@ -229,6 +239,8 @@ export default function HistorialMovimientosScreen() {
         )}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 30 }}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <MaterialIcons name="inbox" size={36} color="#1e3a5f" />

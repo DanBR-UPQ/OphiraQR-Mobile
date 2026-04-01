@@ -84,6 +84,13 @@ export default function ListActivosScreen() {
   const [loading, setLoading] = useState(true);
   const [editVisible, setEditVisible] = useState(false);
   const [editValues, setEditValues] = useState({ nombre: '', descripcion: '' });
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await cargarDatos();
+    setRefreshing(false);
+  };
 
   const cargarDatos = async () => {
     try {
@@ -248,6 +255,8 @@ export default function ListActivosScreen() {
         keyExtractor={i => String(i.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 30 }}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
             <MaterialIcons name="inbox" size={36} color="#1e3a5f" />
