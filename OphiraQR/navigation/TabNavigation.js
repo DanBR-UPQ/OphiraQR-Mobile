@@ -1,5 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import {api} from '../services/api';
 
 import HomeScreen from '../screens/home/HomeScreen';
 import ListActivosScreen from '../screens/activos/ListActivosScreen';
@@ -10,6 +12,24 @@ import ListAuditoriasScreen from '../screens/reportes/ListAuditoriasScreen';
 const Tab = createBottomTabNavigator();
 
 const TabNavigation = () => {
+  const [rol, setRol] = useState(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await api.get('/usuarios/me');
+        setRol(res.id_rol);
+        console.log(rol)
+      } catch (error) {
+        console.log('Error jalando usuario:', error);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  if (rol === null) return null;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -17,7 +37,7 @@ const TabNavigation = () => {
         tabBarActiveTintColor: '#0055e5',
         tabBarInactiveTintColor: 'white',
         tabBarStyle: {
-        backgroundColor: '#0f141e',
+          backgroundColor: '#0f141e',
         },
         tabBarIcon: ({ color, size, focused }) => {
           let iconName;
@@ -42,7 +62,10 @@ const TabNavigation = () => {
       <Tab.Screen name="Activos" component={ListActivosScreen} />
       <Tab.Screen name="QR" component={ScanQrScreen} />
       <Tab.Screen name="Movimientos" component={HistorialMovimientosScreen} />
-      <Tab.Screen name="Auditorías" component={ListAuditoriasScreen} />
+
+      {rol !== 3 && (
+        <Tab.Screen name="Auditorías" component={ListAuditoriasScreen} />
+      )}
     </Tab.Navigator>
   );
 };
