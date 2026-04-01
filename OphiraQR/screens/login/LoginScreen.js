@@ -1,10 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { useState } from 'react'
 import { api } from '../../services/api'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Alert } from 'react-native'
 import { useNavigation } from '@react-navigation/native';
+
 export default function LoginScreen() {
 
   const [correo, setCorreo] = useState('');
@@ -12,97 +13,110 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation();
 
-const handleLogin = async () => {
-  if (!correo || !password) {
-    Alert.alert('Error', 'Completa todos los campos');
-    return;
-  }
+  const handleLogin = async () => {
+    if (!correo || !password) {
+      Alert.alert('Error', 'Completa todos los campos');
+      return;
+    }
 
-  try {
-    setLoading(true);
-    const response = await api.post('/auth/login', {
-      correo,
-      password
-    });
+    try {
+      setLoading(true);
+      const normalizedCorreo = correo.trim().toLowerCase();
+      const response = await api.post('/auth/login', {
+        correo: normalizedCorreo,
+        password
+      });
 
-    await AsyncStorage.setItem('token', response.token);
+      await AsyncStorage.setItem('token', response.token);
 
-    Alert.alert('Éxito', 'Login correcto');
+      // Removed success alert — navigation to MainTabs confirms login
+      navigation.replace("MainTabs");
 
-    navigation.replace("MainTabs");
-
-  } catch (error) {
-    Alert.alert('Error', 'Credenciales incorrectas o servidor');
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-
-
-
-
-
+    } catch (error) {
+      Alert.alert('Error', 'Credenciales incorrectas o servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <View style={styles.container}>
-      {/* Subtle background accent blob */}
-      <View style={styles.bgAccent} />
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Subtle background accent blob */}
+        <View style={styles.bgAccent} />
 
-      <View style={styles.card}>
-        {/* Logo section */}
-        <View style={styles.logoWrapper}>
-          <View style={styles.logoRing}>
-            <Image source={require('../../assets/icon.png')} style={styles.logo} />
+        <View style={styles.card}>
+          {/* Logo section */}
+          <View style={styles.logoWrapper}>
+            <View style={styles.logoRing}>
+              <Image source={require('../../assets/icon.png')} style={styles.logo} />
+            </View>
           </View>
+
+          <Text style={styles.logoTitle}>Ophira QR</Text>
+          <Text style={styles.tagline} numberOfLines={2}>
+            Gestión precisa de activos impulsada por{'\n'}tecnología QR de última generación.
+          </Text>
+
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          {/* Inputs */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Correo</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="usuario@empresa.com"
+              placeholderTextColor="#3a4a60"
+              value={correo}
+              onChangeText={setCorreo}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Contraseña</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="••••••••"
+              placeholderTextColor="#3a4a60"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+          </View>
+
+          {/* CTA */}
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            activeOpacity={0.85}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Iniciar Sesión</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text> */}
         </View>
 
-        <Text style={styles.logoTitle}>Ophira QR</Text>
-        <Text style={styles.tagline} numberOfLines={2}>
-          Gestión precisa de activos impulsada por{'\n'}tecnología QR de última generación.
-        </Text>
-
-        {/* Divider */}
-        <View style={styles.divider} />
-
-        {/* Inputs */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Correo</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="usuario@empresa.com"
-            placeholderTextColor="#3a4a60"
-            value={correo}
-            onChangeText={setCorreo}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Contraseña</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            placeholderTextColor="#3a4a60"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-        </View>
-
-        {/* CTA */}
-        <TouchableOpacity style={styles.button} activeOpacity={0.85} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Iniciar Sesión</Text>
-         
-        </TouchableOpacity>
-
-        {/* <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text> */}
-      </View>
-
-      <Text style={styles.footer}>© 2026 Ophira Technologies</Text>
+        <Text style={styles.footer}>© 2026 Ophira Technologies</Text>
+      </ScrollView>
 
       <StatusBar style="light" />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -110,8 +124,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0b1120',
+  },
+
+  scrollContent: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    //paddingVertical: 48,
   },
 
   // Subtle background glow accent
@@ -222,6 +241,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
+    minHeight: 50,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: '#fff',
@@ -257,8 +280,7 @@ const styles = StyleSheet.create({
 
   // Footer
   footer: {
-    position: 'absolute',
-    bottom: 32,
+    marginTop: 32,
     color: '#1e2d45',
     fontSize: 11,
     letterSpacing: 0.5,
