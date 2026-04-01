@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import {
   StyleSheet,
   Text,
@@ -118,6 +120,24 @@ export default function UserProfileScreen({ navigation }) {
   const headerAnim = useRef(new Animated.Value(0)).current;
   const avatarAnim = useRef(new Animated.Value(0)).current;
 
+  const handleLogout = async () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Estás seguro de que quieres salir?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Salir',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem('token');
+            navigation.replace('Login');
+          },
+        },
+      ]
+    );
+  };
+
   const fetchUser = async () => {
     setLoading(true);
     setError(false);
@@ -176,14 +196,15 @@ export default function UserProfileScreen({ navigation }) {
           <Text style={styles.headerSub}>MI CUENTA</Text>
           <Text style={styles.headerTitle}>Mi Perfil</Text>
         </View>
-        {user && (
-          <View style={[styles.statusPill, { backgroundColor: user.activo ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.12)' }]}>
-            <View style={[styles.statusDot, { backgroundColor: user.activo ? '#10b981' : '#ef4444' }]} />
-            <Text style={[styles.statusText, { color: user.activo ? '#10b981' : '#ef4444' }]}>
-              {user.activo ? 'Activo' : 'Inactivo'}
-            </Text>
-          </View>
-        )}
+          {user && (
+            <TouchableOpacity
+              style={styles.logoutBtn}
+              onPress={handleLogout}
+              activeOpacity={0.75}
+            >
+              <MaterialIcons name="logout" size={16} color="#ef4444" />
+            </TouchableOpacity>
+          )}
       </Animated.View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -332,4 +353,15 @@ const styles = StyleSheet.create({
   // ── Readonly note ──
   readonlyNote: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#0d1829', borderRadius: 12, borderWidth: 1, borderColor: '#1a2a42', paddingHorizontal: 14, paddingVertical: 12, marginTop: 4 },
   readonlyText: { color: '#3a5070', fontSize: 11, lineHeight: 16, flex: 1 },
+
+  logoutBtn: {
+  width: 36,
+  height: 36,
+  borderRadius: 10,
+  backgroundColor: '#111827',
+  borderWidth: 1,
+  borderColor: '#2a1a1a',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
 });
